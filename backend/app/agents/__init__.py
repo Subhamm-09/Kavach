@@ -1,4 +1,4 @@
-"""Kavach 11 Agent & Component Registry."""
+"""Kavach Agent & Component Registry."""
 
 from backend.app.agents.guardian import GuardianOrchestratorAgent
 from backend.app.agents.proximity_risk import ProximityRiskAgentNode
@@ -12,6 +12,12 @@ from backend.app.agents.legal import LegalAgentNode
 from backend.app.agents.therapy import TherapyAgentNode
 from backend.app.agents.evidence_compiler import EvidenceCompilerAgent
 
+# Extended Conversational Intelligence Nodes
+from backend.app.agents.emotion_analysis import EmotionAnalysisAgentNode
+from backend.app.agents.memory_retrieval import MemoryRetrievalAgentNode
+from backend.app.agents.intent_router import IntentRouterAgentNode, chat_intent_router
+from backend.app.agents.response_synthesizer import ResponseSynthesizerAgentNode
+
 __all__ = [
     "GuardianOrchestratorAgent",
     "ProximityRiskAgentNode",
@@ -24,4 +30,10 @@ __all__ = [
     "LegalAgentNode",
     "TherapyAgentNode",
     "EvidenceCompilerAgent",
+    # New Nodes
+    "EmotionAnalysisAgentNode",
+    "MemoryRetrievalAgentNode",
+    "IntentRouterAgentNode",
+    "chat_intent_router",
+    "ResponseSynthesizerAgentNode",
 ]

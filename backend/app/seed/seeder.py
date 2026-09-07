@@ -6,6 +6,7 @@ Guarantees idempotency via DatabaseSeedMeta version tracking.
 import uuid
 import json
 from datetime import datetime
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 
 from backend.app.config import settings
@@ -16,6 +17,7 @@ from backend.app.models.geospatial import RiskZone
 from backend.app.models.incident import Incident
 from backend.app.models.case import Case
 from backend.app.models.verification import VerificationResult
+from backend.app.models.memory import UserMemory
 from backend.app.models.audit import DatabaseSeedMeta, AuditEvent
 from backend.app.security.hashing import hash_password
 from backend.app.privacy.guardian import PrivacyGuardianService

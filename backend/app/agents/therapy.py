@@ -129,7 +129,7 @@ class TherapyAgentNode:
         """LangGraph execution node for Therapy Agent."""
         user_msg = state.get("raw_input", "")
         session_id = state.get("session_id", str(uuid.uuid4()))
-        loc = state.get("location", {})
+        loc = state.get("location") or {}
 
         result = await cls.process_chat_message(
             db=db,

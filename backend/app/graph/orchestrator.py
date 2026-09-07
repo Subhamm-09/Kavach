@@ -1,5 +1,9 @@
 """LangGraph Central StateGraph Orchestrator.
-Coordinates the Guardian Orchestrator and all 10 downstream agents over shared state.
+Coordinates the Guardian Orchestrator, all 10 downstream agents, and the 4 conversational intelligence nodes:
+- Response Synthesizer (Node 1)
+- Memory Retrieval (Node 2)
+- Emotion Analysis (Node 3)
+- Intent Router (Node 4)
 """
 
 import uuid
@@ -18,6 +22,12 @@ from backend.app.agents.privacy_guardian import PrivacyGuardianAgentNode
 from backend.app.agents.legal import LegalAgentNode
 from backend.app.agents.therapy import TherapyAgentNode
 from backend.app.agents.evidence_compiler import EvidenceCompilerAgent
+
+# Extended Conversational Intelligence Nodes
+from backend.app.agents.emotion_analysis import EmotionAnalysisAgentNode
+from backend.app.agents.memory_retrieval import MemoryRetrievalAgentNode
+from backend.app.agents.intent_router import IntentRouterAgentNode, chat_intent_router
+from backend.app.agents.response_synthesizer import ResponseSynthesizerAgentNode
 
 
 def create_kavach_graph(db: Session):
@@ -55,7 +65,20 @@ def create_kavach_graph(db: Session):
     def evidence_step(state: KavachGraphState) -> KavachGraphState:
         return EvidenceCompilerAgent.execute(state, db=db)
 
-    # Add Nodes
+    # New Conversational Intelligence Step Wrappers
+    async def emotion_step(state: KavachGraphState) -> KavachGraphState:
+        return await EmotionAnalysisAgentNode.execute(state, db=db)
+
+    def memory_step(state: KavachGraphState) -> KavachGraphState:
+        return MemoryRetrievalAgentNode.execute(state, db=db)
+
+    async def intent_router_step(state: KavachGraphState) -> KavachGraphState:
+        return await IntentRouterAgentNode.execute(state, db=db)
+
+    async def synthesizer_step(state: KavachGraphState) -> KavachGraphState:
+        return await ResponseSynthesizerAgentNode.execute(state, db=db)
+
+    # 1. Add All 10 Existing Nodes
     workflow.add_node("guardian", guardian_step)
     workflow.add_node("proximity_risk", proximity_step)
     workflow.add_node("safety_heatmap", heatmap_step)
@@ -66,6 +89,12 @@ def create_kavach_graph(db: Session):
     workflow.add_node("privacy_guardian", privacy_step)
     workflow.add_node("legal", legal_step)
     workflow.add_node("evidence_compiler", evidence_step)
+
+    # 2. Add 4 Extended Conversational Intelligence Nodes
+    workflow.add_node("emotion_analysis", emotion_step)
+    workflow.add_node("memory_retrieval", memory_step)
+    workflow.add_node("intent_router", intent_router_step)
+    workflow.add_node("response_synthesizer", synthesizer_step)
 
     # Set Entry Point
     workflow.set_entry_point("guardian")
@@ -86,7 +115,7 @@ def create_kavach_graph(db: Session):
         elif "HEATMAP" in sig:
             return "safety_heatmap"
         else:
-            return "evidence_compiler"
+            return "response_synthesizer"
 
     workflow.add_conditional_edges(
         "guardian",
@@ -98,22 +127,46 @@ def create_kavach_graph(db: Session):
             "legal": "legal",
             "safe_route": "safe_route",
             "safety_heatmap": "safety_heatmap",
+            "response_synthesizer": "response_synthesizer",
             "evidence_compiler": "evidence_compiler",
         }
     )
 
-    # Connect downstream handoff chains
+    # Conversational Intelligence Sequence:
+    # therapy -> emotion_analysis -> memory_retrieval -> intent_router
+    workflow.add_edge("therapy", "emotion_analysis")
+    workflow.add_edge("emotion_analysis", "memory_retrieval")
+    workflow.add_edge("memory_retrieval", "intent_router")
+
+    # Intent Router Branching:
+    # - emotional_support / general_chat -> response_synthesizer
+    # - legal_information / incident_reporting -> legal
+    # - route_request -> safe_route
+    # - safety_request -> proximity_risk
+    workflow.add_conditional_edges(
+        "intent_router",
+        chat_intent_router,
+        {
+            "response_synthesizer": "response_synthesizer",
+            "legal": "legal",
+            "safe_route": "safe_route",
+            "proximity_risk": "proximity_risk",
+        }
+    )
+
+    # Downstream Processing Chains leading to Response Synthesizer
     workflow.add_edge("proximity_risk", "safety_heatmap")
     workflow.add_edge("safety_heatmap", "safe_route")
-    workflow.add_edge("safe_route", "evidence_compiler")
+    workflow.add_edge("safe_route", "response_synthesizer")
 
-    workflow.add_edge("therapy", "legal")
-    workflow.add_edge("legal", "evidence_compiler")
+    workflow.add_edge("legal", "response_synthesizer")
 
     workflow.add_edge("culprit_matching", "verification")
     workflow.add_edge("verification", "privacy_guardian")
-    workflow.add_edge("privacy_guardian", "evidence_compiler")
+    workflow.add_edge("privacy_guardian", "response_synthesizer")
 
+    # Terminal Sequence: response_synthesizer -> evidence_compiler -> END
+    workflow.add_edge("response_synthesizer", "evidence_compiler")
     workflow.add_edge("evidence_compiler", END)
 
     return workflow.compile()
@@ -157,6 +210,10 @@ class LangGraphOrchestrationService:
             "authority_visibility": False,
             "audit_events": [],
             "activity_timeline": [],
+            # Extended conversational states
+            "emotion_result": None,
+            "memory_result": None,
+            "chat_intent": None,
             "final_response": {},
         }
 

@@ -40,6 +40,11 @@ class KavachGraphState(TypedDict, total=False):
     evidence_result: Optional[Dict[str, Any]]
     consent_state: Optional[Dict[str, Any]]
     
+    # Extended Conversational Intelligence
+    emotion_result: Optional[Dict[str, Any]]  # {"emotion": "anxiety", "intensity": 7, "triggers": [...]}
+    memory_result: Optional[Dict[str, Any]]   # {"retrieved_memories": [...]}
+    chat_intent: Optional[str]               # emotional_support, general_chat, legal_information, etc.
+    
     # System & Case Tracking
     open_case_ids: Optional[List[str]]
     escalation_level: str  # NONE, NOTIFY_USER, WARN_CONTACTS, EMERGENCY_DISPATCH
