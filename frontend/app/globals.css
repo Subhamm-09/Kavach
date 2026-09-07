@@ -34,3 +34,47 @@ input:focus, textarea:focus, select:focus { border-color: var(--teal) !important
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .animate-fadeIn { animation: fadeIn .25s ease-out; }
 
+/* Emergency Threat Pulsing Animations */
+@keyframes emergencyStrobe {
+  0%, 100% {
+    background-color: rgba(239, 68, 68, 0.04);
+    box-shadow: inset 0 0 40px rgba(220, 38, 38, 0.12);
+  }
+  50% {
+    background-color: rgba(239, 68, 68, 0.16);
+    box-shadow: inset 0 0 100px rgba(220, 38, 38, 0.35), 0 0 35px rgba(239, 68, 68, 0.25);
+  }
+}
+
+@keyframes dangerVignette {
+  0%, 100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@keyframes alertBorderFlash {
+  0%, 100% {
+    border-color: rgba(220, 38, 38, 0.4);
+    box-shadow: 0 0 15px rgba(220, 38, 38, 0.2);
+  }
+  50% {
+    border-color: rgba(220, 38, 38, 0.95);
+    box-shadow: 0 0 30px rgba(220, 38, 38, 0.5), inset 0 0 15px rgba(220, 38, 38, 0.15);
+  }
+}
+
+.emergency-strobe-bg {
+  animation: emergencyStrobe 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.danger-vignette-pulse {
+  animation: dangerVignette 1.2s ease-in-out infinite;
+}
+
+.alert-flash-border {
+  animation: alertBorderFlash 1s ease-in-out infinite;
+}
+

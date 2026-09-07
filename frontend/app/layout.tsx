@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import Navbar from "@/components/Navbar";
+import TalkWidget from "@/components/TalkWidget";
 
 export const metadata: Metadata = {
   title: "KAVACH — Full-Stack Agentic AI Safety Platform",
@@ -20,6 +21,7 @@ export default function RootLayout({
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
           {children}
         </main>
+        <TalkWidget />
         <footer className="border-t border-[#dbe2dc] bg-[#eef1eb] py-6 text-center text-xs text-[#65736f]">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div>
