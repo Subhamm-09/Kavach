@@ -28,11 +28,12 @@ const STARTER_PROMPTS = [
 
 export default function TalkWidget() {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionToken] = useState(() => "SESS-WIDGET-" + Math.random().toString(36).substring(7).toUpperCase());
+  const [sessionToken, setSessionToken] = useState("SESS-WIDGET-DEFAULT");
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -49,7 +50,7 @@ export default function TalkWidget() {
         guardian_handoff_required: false,
         recommended_action: "SUPPORT",
       },
-      timestamp: new Date().toISOString(),
+      timestamp: "2026-09-08T00:00:00.000Z",
     },
   ]);
 
@@ -58,14 +59,24 @@ export default function TalkWidget() {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
+    setMounted(true);
+    setSessionToken("SESS-WIDGET-" + Math.random().toString(36).substring(7).toUpperCase());
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.message_id === "welcome-widget" ? { ...m, timestamp: new Date().toISOString() } : m
+      )
+    );
+  }, []);
+
+  useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       inputRef.current?.focus();
     }
   }, [isOpen, messages]);
 
-  // Don't render the floating widget on the /chat page itself
-  if (pathname === "/chat") {
+  // Don't render the floating widget on the /chat page itself or before mounted
+  if (!mounted || pathname === "/chat") {
     return null;
   }
 
@@ -144,13 +155,13 @@ export default function TalkWidget() {
   };
 
   return (
-    <aside aria-label="Confidential Support Companion" className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end pointer-events-none">
+    <aside aria-label="Confidential Support Companion" className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-[9999] flex flex-col items-end">
       {/* Floating Chat Modal */}
       {isOpen && (
         <div
           role="dialog"
           aria-label="Talk with Kavach private companion"
-          className="pointer-events-auto mb-3 w-[360px] sm:w-[400px] max-w-[calc(100vw-28px)] h-[530px] max-h-[calc(100vh-100px)] rounded-3xl border border-[#cfdad3] bg-[#fffdf8] shadow-[0_24px_64px_rgba(23,51,47,0.22)] flex flex-col overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
+          className="mb-3 w-[360px] sm:w-[400px] max-w-[calc(100vw-28px)] h-[530px] max-h-[calc(100vh-100px)] rounded-3xl border border-[#cfdad3] bg-[#fffdf8] shadow-[0_24px_64px_rgba(23,51,47,0.22)] flex flex-col overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
         >
           {/* Header */}
           <div className="p-4 pb-3 border-b border-[#e6ece8] bg-gradient-to-r from-[#fdf2f4] via-[#fdf7f5] to-[#f7f5ef] flex items-center justify-between gap-3">
@@ -307,10 +318,14 @@ export default function TalkWidget() {
       )}
 
       {/* Floating Action Button (Always Visible in Bottom Right) */}
-      <div className="pointer-events-auto flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          className={`group flex items-center gap-2.5 rounded-full px-4 py-3 text-xs font-bold transition-all duration-300 shadow-[0_12px_32px_rgba(23,51,47,0.18)] ${
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen((prev) => !prev);
+          }}
+          className={`cursor-pointer group flex items-center gap-2.5 rounded-full px-4 py-3 text-xs font-bold transition-all duration-300 shadow-[0_12px_32px_rgba(23,51,47,0.18)] ${
             isOpen
               ? "bg-[#17332f] text-white hover:bg-[#285048]"
               : "bg-[#a53f59] text-white hover:bg-[#8e3249] hover:shadow-[0_16px_36px_rgba(165,63,89,0.36)] hover:scale-105"

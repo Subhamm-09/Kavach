@@ -14,18 +14,32 @@ from backend.app.providers.fallback import DeterministicFallbackProvider
 
 
 class GeminiProvider(BaseAIProvider):
-    """Google Gemini AI Provider implementation."""
+    """Google Gemini AI Provider implementation with circuit-breaker fallback."""
 
     def __init__(self):
         self.fallback = DeterministicFallbackProvider()
-        self.api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
+        self.api_key = (settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")).strip()
         self.client = None
+        self.quota_exhausted = False
         if self.api_key:
             try:
-                self.client = genai.Client(api_key=self.api_key)
+                self.client = genai.Client(
+                    api_key=self.api_key,
+                    http_options=types.HttpOptions(
+                        retry_options=types.HttpRetryOptions(attempts=1)
+                    )
+                )
             except Exception as e:
                 print(f"[GEMINI INIT WARNING] Failed to initialize Gemini client: {e}")
                 self.client = None
+
+    def _handle_failure(self, err: Exception, stage: str):
+        err_str = str(err)
+        if any(code in err_str for code in ["400", "401", "403", "429", "RESOURCE_EXHAUSTED", "INVALID_ARGUMENT", "quota"]):
+            self.quota_exhausted = True
+            print(f"[GEMINI CIRCUIT BREAKER] {stage} failed ({err_str[:120]}). Instant local fallback active (<5ms).")
+        else:
+            print(f"[GEMINI CALL FALLBACK] {stage} failed ({err_str}), using fallback.")
 
     async def classify_guardian_signal(
         self,
@@ -34,7 +48,7 @@ class GeminiProvider(BaseAIProvider):
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Classify incoming signal using Gemini structured JSON response."""
-        if not self.client:
+        if not self.client or self.quota_exhausted:
             return await self.fallback.classify_guardian_signal(signal_type, raw_input, context)
 
         prompt = f"""You are the Guardian Orchestrator Agent for KAVACH, an agentic safety platform in Bhubaneswar.
@@ -67,7 +81,7 @@ Respond with a valid JSON object matching this schema:
             result = json.loads(response.text)
             return result
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Guardian classification failed ({e}), using fallback.")
+            self._handle_failure(e, "Guardian classification")
             return await self.fallback.classify_guardian_signal(signal_type, raw_input, context)
 
     async def analyze_therapy_distress(
@@ -76,7 +90,7 @@ Respond with a valid JSON object matching this schema:
         conversation_history: List[Dict[str, str]]
     ) -> Dict[str, Any]:
         """Analyze message for distress or imminent danger using Gemini."""
-        if not self.client:
+        if not self.client or self.quota_exhausted:
             return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
 
         prompt = f"""You are the Therapy Agent's safety perception module for KAVACH.
@@ -106,7 +120,7 @@ Respond with JSON:
             )
             return json.loads(response.text)
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Therapy analysis failed ({e}), using fallback.")
+            self._handle_failure(e, "Therapy analysis")
             return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
 
     async def generate_therapy_response(
@@ -116,7 +130,7 @@ Respond with JSON:
         distress_level: str
     ) -> str:
         """Generate trauma-informed conversational response using Gemini."""
-        if not self.client:
+        if not self.client or self.quota_exhausted:
             return await self.fallback.generate_therapy_response(message_text, conversation_history, distress_level)
 
         prompt = f"""You are the Therapy Agent for KAVACH, a trauma-informed safety platform in India.
@@ -138,7 +152,7 @@ Distress Level: {distress_level}
             )
             return response.text.strip()
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Therapy response generation failed ({e}), using fallback.")
+            self._handle_failure(e, "Therapy response generation")
             return await self.fallback.generate_therapy_response(message_text, conversation_history, distress_level)
 
     async def draft_formal_complaint(
@@ -150,7 +164,7 @@ Distress Level: {distress_level}
         complainant_name: str
     ) -> str:
         """Draft formal statutory police complaint using Gemini."""
-        if not self.client:
+        if not self.client or self.quota_exhausted:
             return await self.fallback.draft_formal_complaint(
                 incident_narrative, perpetrator_details, citations, police_station, complainant_name
             )
@@ -175,12 +189,10 @@ Format the output cleanly as a formal legal complaint letter.
             )
             return response.text.strip()
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Complaint drafting failed ({e}), using fallback.")
+            self._handle_failure(e, "Complaint drafting")
             return await self.fallback.draft_formal_complaint(
                 incident_narrative, perpetrator_details, citations, police_station, complainant_name
             )
-
-
 
     async def analyze_emotion(
         self,
@@ -188,7 +200,7 @@ Format the output cleanly as a formal legal complaint letter.
         conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """Classify emotional state across 9 canonical emotions and assign intensity 1-10."""
-        if not self.client:
+        if not self.client or self.quota_exhausted:
             return await self.fallback.analyze_emotion(message_text, conversation_history)
 
         prompt = f"""You are the Emotion Analysis Node for Kavach Safety Platform.
@@ -216,7 +228,7 @@ Respond ONLY with valid JSON:
             )
             return json.loads(res.text.strip())
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Emotion analysis failed ({e}), using fallback.")
+            self._handle_failure(e, "Emotion analysis")
             return await self.fallback.analyze_emotion(message_text, conversation_history)
 
     async def classify_chat_intent(
@@ -225,7 +237,7 @@ Respond ONLY with valid JSON:
         conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """Classify conversational intent into one of 6 target branches."""
-        if not self.client:
+        if not self.client or self.quota_exhausted:
             return await self.fallback.classify_chat_intent(message_text, conversation_history)
 
         prompt = f"""You are the Chat Intent Router for Kavach.
@@ -254,7 +266,7 @@ Respond ONLY with valid JSON:
             )
             return json.loads(res.text.strip())
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Chat intent routing failed ({e}), using fallback.")
+            self._handle_failure(e, "Chat intent routing")
             return await self.fallback.classify_chat_intent(message_text, conversation_history)
 
     async def synthesize_final_response(
@@ -270,7 +282,7 @@ Respond ONLY with valid JSON:
         """Node 1: Dedicated Final Response Node.
         Synthesizes a warm, humanized, trauma-informed response while strictly concealing internal reasoning.
         """
-        if not self.client:
+        if not self.client or self.quota_exhausted:
             return await self.fallback.synthesize_final_response(
                 user_message=user_message,
                 therapy_res=therapy_res,
@@ -358,7 +370,7 @@ Generate the final, natural user-facing response:"""
             )
             return res.text.strip()
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Final response synthesis failed ({e}), using fallback.")
+            self._handle_failure(e, "Final response synthesis")
             return await self.fallback.synthesize_final_response(
                 user_message=user_message,
                 therapy_res=therapy_res,
@@ -375,7 +387,7 @@ Generate the final, natural user-facing response:"""
         final_response: str
     ) -> Dict[str, Any]:
         """Decide whether to persist high-salience long-term memory."""
-        if not self.client:
+        if not self.client or self.quota_exhausted:
             return await self.fallback.chatbot_extract_memory(user_message, final_response)
 
         prompt = f"""You are the Memory Extraction Node for Kavach. Determine what should be stored for future conversations.
@@ -399,7 +411,7 @@ Respond ONLY with valid JSON:
             )
             return json.loads(res.text.strip())
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Memory extraction failed ({e}), using fallback.")
+            self._handle_failure(e, "Memory extraction")
             return await self.fallback.chatbot_extract_memory(user_message, final_response)
 
 
