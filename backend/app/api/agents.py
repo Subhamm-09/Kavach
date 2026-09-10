@@ -70,6 +70,10 @@ async def trigger_agent_pipeline(payload: AgentPipelineRunRequest, db: Session =
         routing_decision=routing_decision,
         timeline_events=timeline_events,
         final_output={
+            "final_response": state.get("final_response"),
+            "emotion": state.get("emotion_result"),
+            "memory": state.get("memory_result"),
+            "chat_intent": state.get("chat_intent"),
             "proximity": state.get("proximity_result"),
             "heatmap": state.get("heatmap_result"),
             "route": state.get("route_result"),

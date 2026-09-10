@@ -11,6 +11,7 @@ from backend.app.models.consent import ConsentEvent
 from backend.app.models.chat import ChatSession, ChatMessage
 from backend.app.models.legal import LegalDocumentMetadata
 from backend.app.models.evidence import EvidenceEvent
+from backend.app.models.memory import UserMemory
 from backend.app.models.audit import AuditEvent, AgentRun, DatabaseSeedMeta
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "ChatMessage",
     "LegalDocumentMetadata",
     "EvidenceEvent",
+    "UserMemory",
     "AuditEvent",
     "AgentRun",
     "DatabaseSeedMeta",
