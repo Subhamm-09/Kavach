@@ -549,23 +549,68 @@ Yours sincerely,
                 "I am keeping an eye on your check-in—let me know the moment you feel uncomfortable."
             )
 
-        # 10. Greetings & General conversation
-        if re.search(r"\b(hi|hello|hey)\b", raw_text):
+        # 10. Locality-specific safety inquiries (Bhubaneswar context)
+        bhubaneswar_areas = {
+            "infocity": "Infocity has active tech corridors, but the forest periphery and unlit side cuts can feel isolated after dark. Stick to the main DLF / Infocity Avenue.",
+            "patia": "Patia has good commercial activity, but smaller internal colonies have patchy lighting. Stay along the main KIIT road where shops remain open.",
+            "kiit": "Around KIIT Square and Campus road, security sweeps are regular. If you need assistance, moving toward campus gates or main street cafes is recommended.",
+            "khandagiri": "Khandagiri junction is busy, but surrounding foothill paths get dark quickly. Use the well-lit NH highway lanes.",
+            "ghatikia": "Ghatikia and Kalinga Nagar stretches are wider and quieter at night. Prefer primary arterial roads over inner sector lanes.",
+            "saheed nagar": "Saheed Nagar is generally well-populated with frequent PCR patrol rounds. Keep to the central commercial lanes.",
+            "jayadev vihar": "Jayadev Vihar is a major junction with steady traffic and active CCTV coverage around the flyover.",
+            "master canteen": "Master Canteen has high pedestrian transit and 24/7 railway police presence nearby.",
+        }
+        for area, advice in bhubaneswar_areas.items():
+            if area in raw_text:
+                return (
+                    f"Regarding {area.title()}: {advice} "
+                    "Would you like me to map out the safest well-lit route through this area or check real-time radar risk?"
+                )
+
+        # 11. Greetings & Introductory queries (Varied)
+        if re.search(r"\b(hi|hello|hey|greetings|namaste)\b", raw_text):
+            greetings = [
+                "Hi, I'm Kavach. I'm here to support your personal safety whenever you feel uncomfortable or uneasy. Tell me what's on your mind—whether you want to check an area, find a safe route, or talk through something that happened.",
+                "Hello. I'm your confidential Kavach companion. Whether you need immediate safety directions, want to understand your legal rights under BNS, or simply need a safe space to talk, I'm listening.",
+                "Hey there. You're in a secure, private space. How are you feeling right now, and how can I best support you today?"
+            ]
+            pick = sum(ord(c) for c in raw_text) % len(greetings)
+            return greetings[pick]
+
+        # 12. Emotion-tailored empathetic responses for conversational check-ins
+        if emotion == "confusion":
             return (
-                "Hi, I'm Kavach. I'm here to support your safety whenever you feel uncomfortable or unsafe. "
-                "Whether you need to check a route, talk through an incident, or understand your legal rights, tell me what's on your mind."
+                "It is completely understandable to feel unsure about what step to take next. "
+                "We don't have to rush. Would it help more to check area safety, talk through what occurred, or explore your options quietly?"
+            )
+        elif emotion in ["sadness", "hopelessness"]:
+            return (
+                "I hear how heavy and overwhelming this feels right now. Please know that your feelings are valid, and you don't have to navigate this by yourself. "
+                "Whenever you feel ready, I'm here to help you take whatever small step brings you the most comfort and safety."
+            )
+        elif emotion in ["anger", "frustration"]:
+            return (
+                "Your frustration is completely justified—having your boundaries crossed or dealing with continuous stress is exhausting. "
+                "We can channel this whenever you're ready: whether documenting tamper-evident facts, checking legal protections, or planning precautions."
+            )
+        elif emotion == "relief":
+            return (
+                "I'm so glad to hear you're in a safer, more grounded space now. Take a moment to rest and breathe. "
+                "I'll remain right here if you need anything else or want to log any notes later."
             )
 
-        # 11. Therapy base response fallback
+        # 13. Therapy base response fallback
         if therapy_res and therapy_res.get("text"):
             raw_therapy = therapy_res.get("text", "")
-            raw_therapy = re.sub(r"^(Thank you for sharing|I understand your concern|I am here to help)[,.]?\s*", "", raw_therapy, flags=re.IGNORECASE)
-            if raw_therapy.strip():
-                return raw_therapy.strip()
+            if "supporting your safety" not in raw_therapy and "processing your message" not in raw_therapy:
+                raw_therapy = re.sub(r"^(Thank you for sharing|I understand your concern|I am here to help)[,.]?\s*", "", raw_therapy, flags=re.IGNORECASE)
+                if raw_therapy.strip() and len(raw_therapy.strip()) > 15:
+                    return raw_therapy.strip()
 
         # General supportive fallback
         return (
-            "I'm listening closely. Tell me more about what just occurred so we can figure out the best way to keep you safe."
+            "I'm listening closely. Could you tell me a little more about what's going on or what happened? "
+            "Whether you need practical safety guidance, legal options, or simply someone to talk to, I'm right here with you."
         )
 
     async def chatbot_extract_memory(

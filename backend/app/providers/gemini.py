@@ -4,6 +4,7 @@ Falls back automatically to DeterministicFallbackProvider if GEMINI_API_KEY is u
 
 import os
 import json
+import time
 from typing import Dict, Any, List, Optional
 from google import genai
 from google.genai import types
@@ -14,13 +15,13 @@ from backend.app.providers.fallback import DeterministicFallbackProvider
 
 
 class GeminiProvider(BaseAIProvider):
-    """Google Gemini AI Provider implementation with circuit-breaker fallback."""
+    """Google Gemini AI Provider implementation with auto-recovering circuit-breaker fallback."""
 
     def __init__(self):
         self.fallback = DeterministicFallbackProvider()
         self.api_key = (settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")).strip()
         self.client = None
-        self.quota_exhausted = False
+        self.quota_exhausted_until = 0.0
         if self.api_key:
             try:
                 self.client = genai.Client(
@@ -33,13 +34,44 @@ class GeminiProvider(BaseAIProvider):
                 print(f"[GEMINI INIT WARNING] Failed to initialize Gemini client: {e}")
                 self.client = None
 
+    @property
+    def is_available(self) -> bool:
+        """Check if Gemini client is active and not in a temporary rate-limit cooldown window."""
+        if not self.client:
+            return False
+        if time.time() < self.quota_exhausted_until:
+            return False
+        return True
+
     def _handle_failure(self, err: Exception, stage: str):
         err_str = str(err)
-        if any(code in err_str for code in ["400", "401", "403", "429", "RESOURCE_EXHAUSTED", "INVALID_ARGUMENT", "quota"]):
-            self.quota_exhausted = True
-            print(f"[GEMINI CIRCUIT BREAKER] {stage} failed ({err_str[:120]}). Instant local fallback active (<5ms).")
+        if any(code in err_str for code in ["400", "401", "403", "429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "INVALID_ARGUMENT", "quota"]):
+            self.quota_exhausted_until = time.time() + 45.0
+            print(f"[GEMINI CIRCUIT BREAKER] {stage} rate-limited or unavailable ({err_str[:90]}). Temporary 45s fallback active.")
         else:
-            print(f"[GEMINI CALL FALLBACK] {stage} failed ({err_str}), using fallback.")
+            print(f"[GEMINI CALL FALLBACK] {stage} failed ({err_str[:90]}), using fallback.")
+
+    def _generate_content_resilient(self, prompt: str, config: Optional[types.GenerateContentConfig] = None) -> Any:
+        """Attempt primary configured model; if 503 or transient failure, try fallback model."""
+        models_to_try = [settings.GEMINI_MODEL]
+        if "flash-latest" not in settings.GEMINI_MODEL:
+            models_to_try.append("gemini-flash-latest")
+
+        last_err = None
+        for m in models_to_try:
+            try:
+                kwargs = {"model": m, "contents": prompt}
+                if config:
+                    kwargs["config"] = config
+                return self.client.models.generate_content(**kwargs)
+            except Exception as e:
+                last_err = e
+                err_str = str(e)
+                if "503" in err_str or "UNAVAILABLE" in err_str:
+                    print(f"[GEMINI RETRY] Model {m} busy (503), trying secondary model...")
+                    continue
+                raise e
+        raise last_err
 
     async def classify_guardian_signal(
         self,
@@ -47,8 +79,11 @@ class GeminiProvider(BaseAIProvider):
         raw_input: str,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Classify incoming signal using Gemini structured JSON response."""
-        if not self.client or self.quota_exhausted:
+        """Classify incoming signal using fast heuristics for standard workflows, reserving LLM for complex queries."""
+        if signal_type in ["THERAPY_CHAT", "CHAT_CUE", "GPS_PING", "PROXIMITY_EVENT"]:
+            return await self.fallback.classify_guardian_signal(signal_type, raw_input, context)
+
+        if not self.is_available:
             return await self.fallback.classify_guardian_signal(signal_type, raw_input, context)
 
         prompt = f"""You are the Guardian Orchestrator Agent for KAVACH, an agentic safety platform in Bhubaneswar.
@@ -70,9 +105,8 @@ Respond with a valid JSON object matching this schema:
 }}
 """
         try:
-            response = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
+            response = self._generate_content_resilient(
+                prompt=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     temperature=0.1,
@@ -89,39 +123,8 @@ Respond with a valid JSON object matching this schema:
         message_text: str,
         conversation_history: List[Dict[str, str]]
     ) -> Dict[str, Any]:
-        """Analyze message for distress or imminent danger using Gemini."""
-        if not self.client or self.quota_exhausted:
-            return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
-
-        prompt = f"""You are the Therapy Agent's safety perception module for KAVACH.
-Analyze the user's message for distress and imminent safety risks (e.g. stalking, being followed, unsafe area, physical threat).
-
-Message: "{message_text}"
-
-Respond with JSON:
-{{
-  "is_distressed": <bool>,
-  "distress_level": "NONE" | "MILD" | "ELEVATED" | "IMMINENT_DANGER",
-  "distress_score": <float 0.0 to 1.0>,
-  "detected_intent": "<string>",
-  "trigger_cues": ["<extracted words or phrases>", ...],
-  "guardian_handoff_required": <bool>,
-  "recommended_action": "<string>"
-}}
-"""
-        try:
-            response = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.1,
-                )
-            )
-            return json.loads(response.text)
-        except Exception as e:
-            self._handle_failure(e, "Therapy analysis")
-            return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
+        """Analyze message for distress or imminent danger using deterministic safety perception, reserving LLM for synthesis."""
+        return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
 
     async def generate_therapy_response(
         self,
@@ -130,7 +133,7 @@ Respond with JSON:
         distress_level: str
     ) -> str:
         """Generate trauma-informed conversational response using Gemini."""
-        if not self.client or self.quota_exhausted:
+        if not self.is_available:
             return await self.fallback.generate_therapy_response(message_text, conversation_history, distress_level)
 
         prompt = f"""You are the Therapy Agent for KAVACH, a trauma-informed safety platform in India.
@@ -164,7 +167,7 @@ Distress Level: {distress_level}
         complainant_name: str
     ) -> str:
         """Draft formal statutory police complaint using Gemini."""
-        if not self.client or self.quota_exhausted:
+        if not self.is_available:
             return await self.fallback.draft_formal_complaint(
                 incident_narrative, perpetrator_details, citations, police_station, complainant_name
             )
@@ -182,9 +185,8 @@ Retrieved Legal Citations:
 Format the output cleanly as a formal legal complaint letter.
 """
         try:
-            response = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
+            response = self._generate_content_resilient(
+                prompt=prompt,
                 config=types.GenerateContentConfig(temperature=0.2)
             )
             return response.text.strip()
@@ -199,75 +201,16 @@ Format the output cleanly as a formal legal complaint letter.
         message_text: str,
         conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
-        """Classify emotional state across 9 canonical emotions and assign intensity 1-10."""
-        if not self.client or self.quota_exhausted:
-            return await self.fallback.analyze_emotion(message_text, conversation_history)
-
-        prompt = f"""You are the Emotion Analysis Node for Kavach Safety Platform.
-Classify the user's emotional state from their message into one of these canonical emotions:
-- fear, anxiety, sadness, anger, frustration, confusion, hopelessness, relief, neutral
-
-Also assign an emotional intensity from 1 (very mild) to 10 (extreme panic/terror/despair).
-
-User Message: {message_text}
-
-Respond ONLY with valid JSON:
-{{
-  "emotion": "<fear|anxiety|sadness|anger|frustration|confusion|hopelessness|relief|neutral>",
-  "intensity": <int 1-10>,
-  "confidence": <float 0.0-1.0>,
-  "triggers": ["<keyword or trigger token>"],
-  "pacing_guidance": "<short guidance for response tone>"
-}}
-"""
-        try:
-            res = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
-            )
-            return json.loads(res.text.strip())
-        except Exception as e:
-            self._handle_failure(e, "Emotion analysis")
-            return await self.fallback.analyze_emotion(message_text, conversation_history)
+        """Classify emotional state using deterministic affective perception, reserving LLM tokens for response synthesis."""
+        return await self.fallback.analyze_emotion(message_text, conversation_history)
 
     async def classify_chat_intent(
         self,
         message_text: str,
         conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
-        """Classify conversational intent into one of 6 target branches."""
-        if not self.client or self.quota_exhausted:
-            return await self.fallback.classify_chat_intent(message_text, conversation_history)
-
-        prompt = f"""You are the Chat Intent Router for Kavach.
-Determine the primary intent for routing within the safety graph:
-- emotional_support (trauma support, emotional check-in, reassurance)
-- general_chat (casual greetings, generic inquiry about the app)
-- legal_information (asking about statutes, legal rights, BNS, FIR procedures)
-- incident_reporting (formal complaint lodging, reporting a specific crime to police)
-- route_request (asking for safe routes, walking directions, navigation)
-- safety_request (asking about lighting, area safety, crime hotspots, patrols)
-
-User Message: {message_text}
-
-Respond ONLY with valid JSON:
-{{
-  "intent": "<emotional_support|general_chat|legal_information|incident_reporting|route_request|safety_request>",
-  "confidence": <float 0.0-1.0>,
-  "reasoning": "<brief justification>"
-}}
-"""
-        try:
-            res = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
-            )
-            return json.loads(res.text.strip())
-        except Exception as e:
-            self._handle_failure(e, "Chat intent routing")
-            return await self.fallback.classify_chat_intent(message_text, conversation_history)
+        """Classify conversational intent using deterministic rule routing, reserving LLM tokens for response synthesis."""
+        return await self.fallback.classify_chat_intent(message_text, conversation_history)
 
     async def synthesize_final_response(
         self,
@@ -282,7 +225,7 @@ Respond ONLY with valid JSON:
         """Node 1: Dedicated Final Response Node.
         Synthesizes a warm, humanized, trauma-informed response while strictly concealing internal reasoning.
         """
-        if not self.client or self.quota_exhausted:
+        if not self.is_available:
             return await self.fallback.synthesize_final_response(
                 user_message=user_message,
                 therapy_res=therapy_res,
@@ -363,9 +306,8 @@ CURRENT USER MESSAGE:
 Generate the final, natural user-facing response:"""
 
         try:
-            res = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=f"{system_instruction}\n\n{user_prompt}",
+            res = self._generate_content_resilient(
+                prompt=f"{system_instruction}\n\n{user_prompt}",
                 config=types.GenerateContentConfig(temperature=0.35)
             )
             return res.text.strip()
@@ -387,32 +329,8 @@ Generate the final, natural user-facing response:"""
         final_response: str
     ) -> Dict[str, Any]:
         """Decide whether to persist high-salience long-term memory."""
-        if not self.client or self.quota_exhausted:
-            return await self.fallback.chatbot_extract_memory(user_message, final_response)
-
-        prompt = f"""You are the Memory Extraction Node for Kavach. Determine what should be stored for future conversations.
-Store only: ongoing harassment situations, recurring concerns, major life events, important preferences, goals, important relationships.
-Do NOT store trivial conversation details, small talk, or greetings.
-
-User Message: {user_message}
-Bot Response: {final_response}
-
-Respond ONLY with valid JSON:
-{{
-  "should_store": <true_or_false>,
-  "memory": "<concise high-salience memory statement or empty string>"
-}}
-"""
-        try:
-            res = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
-            )
-            return json.loads(res.text.strip())
-        except Exception as e:
-            self._handle_failure(e, "Memory extraction")
-            return await self.fallback.chatbot_extract_memory(user_message, final_response)
+        # Fast heuristic extraction saves LLM quota for synthesis while preserving accuracy
+        return await self.fallback.chatbot_extract_memory(user_message, final_response)
 
 
 # Global AI Provider instance
