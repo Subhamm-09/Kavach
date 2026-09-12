@@ -13,8 +13,21 @@ from backend.app.providers.base import BaseAIProvider
 from backend.app.providers.fallback import DeterministicFallbackProvider
 
 
+def _parse_json_defensively(raw_text: str) -> Dict[str, Any]:
+    """Parse JSON from model response, stripping any markdown code fences if present."""
+    text = raw_text.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return json.loads(text)
+
+
 class GeminiProvider(BaseAIProvider):
-    """Google Gemini AI Provider implementation."""
+    """Google Gemini AI Provider implementation using asynchronous non-blocking client."""
 
     def __init__(self):
         self.fallback = DeterministicFallbackProvider()
@@ -33,7 +46,7 @@ class GeminiProvider(BaseAIProvider):
         raw_input: str,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Classify incoming signal using Gemini structured JSON response."""
+        """Classify incoming signal asynchronously using Gemini structured JSON response."""
         if not self.client:
             return await self.fallback.classify_guardian_signal(signal_type, raw_input, context)
 
@@ -56,7 +69,7 @@ Respond with a valid JSON object matching this schema:
 }}
 """
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model=settings.GEMINI_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -64,7 +77,7 @@ Respond with a valid JSON object matching this schema:
                     temperature=0.1,
                 )
             )
-            result = json.loads(response.text)
+            result = _parse_json_defensively(response.text)
             return result
         except Exception as e:
             print(f"[GEMINI CALL FALLBACK] Guardian classification failed ({e}), using fallback.")
@@ -75,7 +88,7 @@ Respond with a valid JSON object matching this schema:
         message_text: str,
         conversation_history: List[Dict[str, str]]
     ) -> Dict[str, Any]:
-        """Analyze message for distress or imminent danger using Gemini."""
+        """Analyze message for distress or imminent danger asynchronously using Gemini."""
         if not self.client:
             return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
 
@@ -96,7 +109,7 @@ Respond with JSON:
 }}
 """
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model=settings.GEMINI_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -104,7 +117,7 @@ Respond with JSON:
                     temperature=0.1,
                 )
             )
-            return json.loads(response.text)
+            return _parse_json_defensively(response.text)
         except Exception as e:
             print(f"[GEMINI CALL FALLBACK] Therapy analysis failed ({e}), using fallback.")
             return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
@@ -115,7 +128,7 @@ Respond with JSON:
         conversation_history: List[Dict[str, str]],
         distress_level: str
     ) -> str:
-        """Generate trauma-informed conversational response using Gemini."""
+        """Generate trauma-informed conversational response asynchronously using Gemini."""
         if not self.client:
             return await self.fallback.generate_therapy_response(message_text, conversation_history, distress_level)
 
@@ -131,7 +144,7 @@ User Message: "{message_text}"
 Distress Level: {distress_level}
 """
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model=settings.GEMINI_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(temperature=0.3)
@@ -149,7 +162,7 @@ Distress Level: {distress_level}
         police_station: str,
         complainant_name: str
     ) -> str:
-        """Draft formal statutory police complaint using Gemini."""
+        """Draft formal statutory police complaint asynchronously using Gemini."""
         if not self.client:
             return await self.fallback.draft_formal_complaint(
                 incident_narrative, perpetrator_details, citations, police_station, complainant_name
@@ -168,7 +181,7 @@ Retrieved Legal Citations:
 Format the output cleanly as a formal legal complaint letter.
 """
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model=settings.GEMINI_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(temperature=0.2)
@@ -183,3 +196,4 @@ Format the output cleanly as a formal legal complaint letter.
 
 # Global AI Provider instance
 ai_provider = GeminiProvider()
+
