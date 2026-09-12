@@ -1,14 +1,16 @@
 """KAVACH Agentic Safety Platform — Master FastAPI Application."""
 
 import os
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.app.config import settings
 from backend.app.database import engine, Base, SessionLocal
 from backend.app.seed.seeder import seed_database
+from backend.app.rag.chroma_client import get_legal_collection, get_offender_collection
 
 # Routers
 from backend.app.api.auth import router as auth_router
@@ -29,7 +31,7 @@ async def lifespan(app: FastAPI):
     """Application startup and shutdown lifespan."""
     print(f"[INIT] Initializing {settings.APP_NAME} (v{settings.APP_VERSION}) in {settings.APP_ENV} mode...")
     
-    # Initialize DB & Seed Data
+    # 1. Initialize DB & Seed Data
     db = SessionLocal()
     try:
         seed_res = seed_database(db, force=False)
@@ -38,6 +40,14 @@ async def lifespan(app: FastAPI):
         print(f"[WARNING] Seeder warning during startup: {e}")
     finally:
         db.close()
+        
+    # 2. Pre-warm ChromaDB vector collections into memory
+    try:
+        legal_count = get_legal_collection().count()
+        offender_count = get_offender_collection().count()
+        print(f"[PRE-WARM] ChromaDB vector indexes primed (Legal: {legal_count} docs, Offenders: {offender_count} profiles)")
+    except Exception as e:
+        print(f"[PRE-WARM NOTICE] Vector index pre-warm: {e}")
         
     yield
     print(f"[SHUTDOWN] Shutting down {settings.APP_NAME}...")
@@ -49,6 +59,15 @@ app = FastAPI(
     description="Agentic AI Platform for Proactive Prevention, Trauma-Informed Response, and Privacy-Preserving Prosecution.",
     lifespan=lifespan,
 )
+
+# Latency Telemetry Middleware (Zero-overhead request timing header)
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    process_time = time.perf_counter() - start_time
+    response.headers["X-Process-Time"] = f"{process_time:.4f}s"
+    return response
 
 # CORS Configuration
 app.add_middleware(
