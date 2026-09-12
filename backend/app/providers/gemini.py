@@ -102,6 +102,25 @@ class GeminiProvider(BaseAIProvider):
         prompt = f"""You are the Guardian Orchestrator Agent for KAVACH, an agentic safety platform in Bhubaneswar.
 Classify the incoming signal and determine the downstream agent routing and escalation decision.
 
+=========================================
+FEW-SHOT REFERENCE
+=========================================
+Signal Type: "CHAT_CUE"
+Raw Input: "A suspicious vehicle is trailing me near Infocity."
+Output:
+{{
+  "intent": "IMMINENT_PURSUIT_RISK",
+  "severity": "HIGH",
+  "confidence": 0.96,
+  "selected_agents": ["TherapyAgent", "SafeRouteAgent", "LegalAgent"],
+  "escalation_required": true,
+  "escalation_action": "ACTIVATE_PERIMETER_SHELTER_MONITORING",
+  "reasoning_summary": "Active vehicle trailing reported in Infocity corridor requiring immediate safety handoff and safe routing."
+}}
+
+=========================================
+CURRENT SIGNAL TO CLASSIFY
+=========================================
 Signal Type: {signal_type}
 Raw Input: {raw_input}
 Context: {json.dumps(context or {}, default=str)}
@@ -122,7 +141,7 @@ Respond with a valid JSON object matching this schema:
                 prompt=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    temperature=0.1,
+                    temperature=0.0,
                 )
             )
             result = _parse_json_defensively(response.text)
@@ -157,13 +176,23 @@ CRITICAL RULES:
 - If distress_level is IMMINENT_DANGER, encourage moving to safety and mention that Guardian is activated.
 - Keep response calm, clear, and concise.
 
+=========================================
+FEW-SHOT REFERENCE
+=========================================
+User Message: "I am feeling very anxious. A man was staring at me and whistling as I walked back from the office in Patia."
+Distress Level: ELEVATED
+Ideal Response: "I hear you, and it is completely natural to feel shaken after an incident like that. You are in a safer space right now. Take a slow, steady breath with me. If you are still on your commute, stay in well-lit areas or near open stores. Would you like me to note this down in your secure incident log or check your route home?"
+
+=========================================
+CURRENT USER CONTEXT
+=========================================
 User Message: "{message_text}"
 Distress Level: {distress_level}
 """
         try:
             response = await self._generate_content_resilient(
                 prompt=prompt,
-                config=types.GenerateContentConfig(temperature=0.3)
+                config=types.GenerateContentConfig(temperature=0.25)
             )
             return response.text.strip()
         except Exception as e:
@@ -199,7 +228,7 @@ Format the output cleanly as a formal legal complaint letter.
         try:
             response = await self._generate_content_resilient(
                 prompt=prompt,
-                config=types.GenerateContentConfig(temperature=0.2)
+                config=types.GenerateContentConfig(temperature=0.1)
             )
             return response.text.strip()
         except Exception as e:
@@ -297,6 +326,19 @@ HUMANIZATION & TONE RULES
 - Reference relevant memories naturally without saying 'According to our stored memories'.
 - Integrate legal information conversationally without quoting penal codes like an interrogation.
 The user should never feel they are talking to a workflow.
+
+=========================================
+FEW-SHOT IN-CONTEXT EXAMPLES
+=========================================
+[EXAMPLE 1 - High Urgency / Physical Stalking]
+User Input: "A man on a black bike is following me down the dark lane near KIIT."
+Context: Proximity Alert: Patia High Risk Sector
+Ideal Output: "That sounds frightening, and keeping you safe is the first priority right now. Head directly toward the well-lit main road near KIIT Square or the nearest open shop immediately. I am monitoring your perimeter and will guide you away from unlit sectors."
+
+[EXAMPLE 2 - Workplace Harassment / POSH Guidance]
+User Input: "My manager threatened my appraisal if I refuse to meet him privately after office hours."
+Context: Legal Sections: POSH Act Section 3(2), BNS Section 75
+Ideal Output: "This is completely unacceptable and crosses clear legal and workplace boundaries. Under workplace protections like the POSH framework, using performance evaluations to coerce private meetings is strictly prohibited. You have the right to report this to your Internal Committee, and we can help you assemble the factual record."
 """
 
         context_payload = {
@@ -320,7 +362,7 @@ Generate the final, natural user-facing response:"""
         try:
             res = await self._generate_content_resilient(
                 prompt=f"{system_instruction}\n\n{user_prompt}",
-                config=types.GenerateContentConfig(temperature=0.35)
+                config=types.GenerateContentConfig(temperature=0.30)
             )
             return res.text.strip()
         except Exception as e:
