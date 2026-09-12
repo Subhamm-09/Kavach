@@ -1,8 +1,20 @@
 """Kavach Application Configuration."""
 
 import os
+import socket
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Ensure IPv4 resolution on systems where IPv6 DNS queries blackhole/timeout
+_orig_getaddrinfo = socket.getaddrinfo
+
+def _ipv4_first_getaddrinfo(host, port, family=socket.AF_UNSPEC, *args, **kwargs):
+    if family == socket.AF_UNSPEC:
+        family = socket.AF_INET
+    return _orig_getaddrinfo(host, port, family, *args, **kwargs)
+
+socket.getaddrinfo = _ipv4_first_getaddrinfo
+
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

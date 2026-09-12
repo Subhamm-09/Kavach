@@ -1,6 +1,7 @@
 """Therapy Agent Chat API Router."""
 
 import uuid
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from backend.app.models.chat import ChatSession, ChatMessage
 from backend.app.security.auth import get_current_user_optional
 from backend.app.schemas.chat import ChatMessageCreate, ChatMessageResponse, ChatSessionDetailResponse
 from backend.app.agents.therapy import TherapyAgentNode
+from backend.app.graph.orchestrator import LangGraphOrchestrationService
 
 router = APIRouter(prefix="/api/therapy", tags=["Therapy Agent"])
 
@@ -21,21 +23,55 @@ async def send_therapy_message(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Send a message to the trauma-informed Therapy Agent.
-    Evaluates distress and danger cues and initiates Guardian handoff if safety is threatened.
+    """Send a message to the trauma-informed conversational agent pipeline.
+    Executes the full LangGraph state graph including emotion analysis, memory retrieval,
+    intent routing, and sanitized response synthesis.
     """
     token = payload.session_token or f"SESS-{uuid.uuid4().hex[:8]}"
     user_id = current_user.id if current_user else None
 
-    result = await TherapyAgentNode.process_chat_message(
+    # Execute the full LangGraph Conversational Pipeline
+    state = await LangGraphOrchestrationService.run_pipeline(
         db=db,
-        session_token=token,
-        user_message=payload.text,
-        user_lat=payload.user_latitude,
-        user_lng=payload.user_longitude,
+        signal_type="THERAPY_CHAT",
+        raw_input=payload.text,
+        location={"lat": payload.user_latitude, "lng": payload.user_longitude} if payload.user_latitude else None,
         user_id=user_id,
+        session_id=token,
     )
-    return result
+
+    final_resp = state.get("final_response") or {}
+    final_text = final_resp.get("text")
+    therapy_res = state.get("therapy_result") or {}
+
+    response_text = final_text or therapy_res.get("text") or "I am listening and here to support your safety."
+
+    # Update the stored assistant message in DB to retain the synthesized text
+    if final_text and therapy_res.get("message_id"):
+        db_msg = db.query(ChatMessage).filter(ChatMessage.id == therapy_res["message_id"]).first()
+        if db_msg:
+            db_msg.text = final_text
+            db.commit()
+
+    distress_analysis = therapy_res.get("distress_analysis") or {
+        "is_distressed": False,
+        "distress_level": "NONE",
+        "distress_score": 0.0,
+        "detected_intent": state.get("chat_intent", "GENERAL"),
+        "trigger_cues": [],
+        "guardian_handoff_required": False,
+        "recommended_action": "SUPPORT",
+    }
+
+    return ChatMessageResponse(
+        message_id=therapy_res.get("message_id", str(uuid.uuid4())),
+        session_token=token,
+        sender="THERAPY_AGENT",
+        text=response_text,
+        distress_analysis=distress_analysis,
+        guardian_handoff=therapy_res.get("guardian_handoff"),
+        timestamp=therapy_res.get("timestamp") or datetime.utcnow(),
+    )
 
 
 @router.get("/session/{session_token}", response_model=ChatSessionDetailResponse)

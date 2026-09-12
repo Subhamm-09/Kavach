@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import BhubaneswarMap from "@/components/BhubaneswarMap";
 import AgentReasoningTimeline, { TimelineItem } from "@/components/AgentReasoningTimeline";
 import DemoControlPanel from "@/components/DemoControlPanel";
+import SafetyExplainabilityDrawer, { ExplainabilityData } from "@/components/SafetyExplainabilityDrawer";
 import { HeatmapCell, RiskZone, RouteOption, GPSPingEvaluation } from "@/lib/types";
 import { api } from "@/lib/api";
 import {
@@ -23,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 
-export interface DestinationOption {
+interface DestinationOption {
   id: string;
   name: string;
   lat: number;
@@ -31,7 +32,7 @@ export interface DestinationOption {
   area: string;
 }
 
-export const BHUBANESWAR_DESTINATIONS: DestinationOption[] = [
+const BHUBANESWAR_DESTINATIONS: DestinationOption[] = [
   { id: "dest-station", name: "Master Canteen / Central Station", lat: 20.2660, lng: 85.8410, area: "Station Area" },
   { id: "dest-kiit", name: "KIIT Square & Campus", lat: 20.3500, lng: 85.8195, area: "Patia / KIIT" },
   { id: "dest-infocity", name: "Infocity Software Park", lat: 20.3550, lng: 85.8180, area: "Infocity" },
@@ -42,10 +43,14 @@ export const BHUBANESWAR_DESTINATIONS: DestinationOption[] = [
   { id: "dest-acharya", name: "Acharya Vihar Science Park Loop", lat: 20.2980, lng: 85.8320, area: "Acharya Vihar" },
   { id: "dest-vani", name: "Vani Vihar University Highway Gate", lat: 20.2930, lng: 85.8400, area: "Vani Vihar" },
   { id: "dest-saheed", name: "Saheed Nagar Commercial Center", lat: 20.2880, lng: 85.8450, area: "Saheed Nagar" },
+  { id: "dest-rasulgarh", name: "Rasulgarh Square & Eastern Flyover", lat: 20.2920, lng: 85.8650, area: "Rasulgarh" },
   { id: "dest-ram-mandir", name: "Ram Mandir Square & Janpath", lat: 20.2770, lng: 85.8420, area: "Janpath" },
+  { id: "dest-baramunda", name: "Baramunda Inter-State Bus Terminal (ISBT)", lat: 20.2780, lng: 85.7980, area: "Baramunda" },
   { id: "dest-khandagiri", name: "Khandagiri Caves & Main Square", lat: 20.2590, lng: 85.7830, area: "Khandagiri" },
   { id: "dest-ghatikia", name: "Ghatikia Residential Corridor", lat: 20.2700, lng: 85.7765, area: "Ghatikia" },
+  { id: "dest-aiims", name: "AIIMS Hospital & Patrapada Medical Corridor", lat: 20.2460, lng: 85.7680, area: "Patrapada" },
   { id: "dest-old-town", name: "Old Town Heritage Area", lat: 20.2450, lng: 85.8340, area: "Old Town" },
+  { id: "dest-lingipur", name: "Lingipur & Daya River South Bypass", lat: 20.2220, lng: 85.8450, area: "Lingipur" },
 ];
 
 export default function SafetyPage() {
@@ -54,7 +59,9 @@ export default function SafetyPage() {
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
   const [heatmapCells, setHeatmapCells] = useState<HeatmapCell[]>([]);
   const [recommendedRoute, setRecommendedRoute] = useState<RouteOption | null>(null);
-  const [alternativeRoute, setAlternativeRoute] = useState<RouteOption | null>(null);
+  const [alternativeRoutes, setAlternativeRoutes] = useState<RouteOption[]>([]);
+  const [activeRouteId, setActiveRouteId] = useState<string | null>(null);
+  const [selectedExplainabilityArea, setSelectedExplainabilityArea] = useState<ExplainabilityData | null>(null);
 
   // Layer Toggles
   const [showHeatmap, setShowHeatmap] = useState(true);
@@ -101,9 +108,9 @@ export default function SafetyPage() {
         event_id: "init-1",
         timestamp: new Date().toISOString(),
         agent_name: "SafetyHeatmapAgent",
-        action: "Assessed local Bhubaneswar lighting & historical activity",
+        action: "Synchronized Bhubaneswar environmental & lighting intelligence",
         tool_invoked: "HeatmapSurfaceEngine",
-        output_summary: "Loaded 12 spatial grid cells across Bhubaneswar, including Ghatikia and Khandagiri.",
+        output_summary: "Live area safety profiles active across major transit belts and residential sectors.",
         severity: "INFO",
       },
       {
@@ -133,9 +140,8 @@ export default function SafetyPage() {
 
       if (res && res.recommended_route) {
         setRecommendedRoute(res.recommended_route);
-        if (res.alternative_routes && res.alternative_routes.length > 0) {
-          setAlternativeRoute(res.alternative_routes[0]);
-        }
+        setAlternativeRoutes(res.alternative_routes || []);
+        setActiveRouteId(res.recommended_route.route_id);
 
         setTimelineEvents((prev) => [
           {
@@ -262,16 +268,24 @@ export default function SafetyPage() {
     setUserLocation([cell.center_lat, cell.center_lng]);
     setShowHeatmap(true);
     setRecommendedRoute(null);
-    setAlternativeRoute(null);
+    setAlternativeRoutes([]);
     setShowSafeRoute(false);
+    setSelectedExplainabilityArea({
+      areaName: cell.area_name,
+      riskScore: cell.risk_score,
+      riskLevel: cell.risk_level as any,
+      incidentCount: cell.incident_count,
+      centerCoords: [cell.center_lat, cell.center_lng],
+      updatedMinutesAgo: 2,
+    });
     setTimelineEvents((prev) => [
       {
         event_id: `locality-${Date.now()}`,
         timestamp: new Date().toISOString(),
         agent_name: "SafetyHeatmapAgent",
-        action: `Opened aggregated safety view for ${cell.area_name}`,
+        action: `Assessed aggregated safety view for ${cell.area_name}`,
         tool_invoked: "AreaRiskSurface",
-        output_summary: `Area-level signal: ${cell.risk_level.toLowerCase()} risk (${cell.risk_score}/100), based on environmental and historical incident patterns.`,
+        output_summary: `Area signal: ${cell.risk_level.toLowerCase()} risk (${cell.risk_score}/100), based on environmental lighting and historical incident patterns.`,
         severity: cell.risk_score > 65 ? "HIGH" : cell.risk_score > 35 ? "MEDIUM" : "LOW",
       },
       ...prev.slice(0, 15),
@@ -290,13 +304,31 @@ export default function SafetyPage() {
   };
 
   return (
-    <div className="space-y-6 pb-16">
+    <div
+      className={`space-y-6 pb-16 transition-all duration-500 rounded-3xl p-2 sm:p-4 ${
+        isElevatedRisk ? "emergency-strobe-bg" : ""
+      }`}
+    >
+      {/* Red Emergency Vignette Screen Overlay when high-risk alert triggers */}
+      {isElevatedRisk && (
+        <div
+          className="fixed inset-0 pointer-events-none z-50 danger-vignette-pulse transition-opacity duration-300"
+          style={{
+            boxShadow: "inset 0 0 120px rgba(220, 38, 38, 0.45), inset 0 0 40px rgba(239, 68, 68, 0.3)",
+          }}
+        />
+      )}
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded-full border border-[#b8d8cc] bg-[#e5f5ed] text-[#006d62] text-[11px] font-extrabold uppercase tracking-[.1em] mb-1">
+          <div className={`inline-flex items-center space-x-2 px-2.5 py-1 rounded-full border text-[11px] font-extrabold uppercase tracking-[.1em] mb-1 transition-colors ${
+            isElevatedRisk 
+              ? "border-[#ef4444] bg-[#fee2e2] text-[#b91c1c] animate-pulse" 
+              : "border-[#b8d8cc] bg-[#e5f5ed] text-[#006d62]"
+          }`}>
             <Compass className="w-3.5 h-3.5" />
-            <span>Surroundings &amp; Live Risk</span>
+            <span>{isElevatedRisk ? "⚠️ Threat Perimeter Alert Active" : "Surroundings & Live Risk"}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[-.055em] text-[#17332f]">
             Safety Radar
@@ -387,50 +419,40 @@ export default function SafetyPage() {
         </div>
         {localityMessage && <p role="status" className="mt-3 rounded-xl border border-[#e9c8b9] bg-[#fff8f3] px-3 py-2 text-xs text-[#8c4a38]">{localityMessage}</p>}
         {localityQuery.trim() && !selectedLocality && localityMatches.length > 0 && <div className="mt-3 flex flex-wrap gap-2"><span className="self-center text-[11px] font-bold text-[#65736f]">Matching areas:</span>{localityMatches.slice(0, 5).map((cell) => <button type="button" key={cell.cell_id} onClick={() => selectLocality(cell)} className="rounded-full border border-[#c6ddd3] bg-[#fffdf8] px-3 py-1.5 text-xs font-bold text-[#397066] transition hover:border-[#006d62] hover:text-[#006d62]">{cell.area_name}</button>)}</div>}
-        {selectedLocality && <div className="mt-4 grid gap-3 rounded-2xl border border-[#cde0d7] bg-[#fffdf8] p-4 sm:grid-cols-[1fr_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-extrabold text-[#17332f]">{selectedLocality.area_name}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${selectedLocality.risk_score > 65 ? "bg-[#fff0ea] text-[#b04a32]" : selectedLocality.risk_score > 35 ? "bg-[#fff6dd] text-[#936915]" : "bg-[#e5f5ed] text-[#167a5b]"}`}>{selectedLocality.risk_level} area signal</span></div><p className="mt-1 text-xs text-[#65736f]">Risk index: <strong className="text-[#17332f]">{selectedLocality.risk_score}/100</strong> · {selectedLocality.incident_count} aggregated incident signal{selectedLocality.incident_count === 1 ? "" : "s"} in the current model.</p></div><div className="flex items-center gap-2"><button onClick={calculateRoute} className="rounded-xl bg-[#17332f] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#285048]">Route from here</button><button onClick={() => { setSelectedLocalityId(null); setLocalityQuery(""); }} className="grid h-8 w-8 place-items-center rounded-xl border border-[#dbe2dc] text-[#65736f] hover:text-[#17332f]" aria-label="Clear locality search"><X className="h-4 w-4" /></button></div></div>}
+        {selectedLocality && <div className="mt-4 grid gap-3 rounded-2xl border border-[#cde0d7] bg-[#fffdf8] p-4 sm:grid-cols-[1fr_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-extrabold text-[#17332f]">{selectedLocality.area_name}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${selectedLocality.risk_score > 65 ? "bg-[#fff0ea] text-[#b04a32]" : selectedLocality.risk_score > 35 ? "bg-[#fff6dd] text-[#936915]" : "bg-[#e5f5ed] text-[#167a5b]"}`}>{selectedLocality.risk_level} area signal</span></div><p className="mt-1 text-xs text-[#65736f]">Risk index: <strong className="text-[#17332f]">{selectedLocality.risk_score}/100</strong> · {selectedLocality.incident_count} aggregated incident signal{selectedLocality.incident_count === 1 ? "" : "s"} in the current model.</p></div><div className="flex items-center gap-2"><button onClick={() => calculateRoute()} className="rounded-xl bg-[#17332f] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#285048]">Route from here</button><button onClick={() => { setSelectedLocalityId(null); setLocalityQuery(""); }} className="grid h-8 w-8 place-items-center rounded-xl border border-[#dbe2dc] text-[#65736f] hover:text-[#17332f]" aria-label="Clear locality search"><X className="h-4 w-4" /></button></div></div>}
       </section>
 
-      {/* Escalation Alert Banner */}
-      {isElevatedRisk ? (
-        <div className="p-4 sm:p-5 rounded-2xl border border-[#e5a9a0] bg-[#fef2f0] shadow-[0_12px_28px_rgba(192,57,43,0.10)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Escalation Alert Banner (Pulsing Red Emergency Beacon when elevated risk is detected) */}
+      {isElevatedRisk && (
+        <div className="p-4 sm:p-5 rounded-2xl border-2 border-[#dc2626] bg-[#fef2f2] shadow-[0_16px_40px_rgba(220,38,38,0.28)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 alert-flash-border">
           <div className="flex items-start space-x-3.5">
-            <div className="w-10 h-10 rounded-xl bg-[#fce4e1] border border-[#e5a9a0] flex items-center justify-center text-[#c0392b] shrink-0">
-              <ShieldAlert className="w-5 h-5" />
+            <div className="w-11 h-11 rounded-xl bg-[#fee2e2] border border-[#ef4444] flex items-center justify-center text-[#dc2626] shrink-0 animate-bounce">
+              <ShieldAlert className="w-6 h-6 stroke-[2.5]" />
             </div>
             <div className="space-y-1">
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-extrabold text-[#c0392b]">
-                  Kavach detected elevated risk
+                <span className="text-sm font-black tracking-tight text-[#dc2626] uppercase">
+                  🚨 Kavach Alert: Elevated Risk Detected
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#fce4e1] text-[#c0392b] border border-[#e5a9a0]">
-                  Flagged Zone Nearby
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#dc2626] text-white shadow-sm animate-pulse">
+                  High Risk Zone
                 </span>
               </div>
-              <p className="text-xs text-[#52635c]">
-                You are approaching <strong className="text-[#17332f]">{escalationData?.nearest_zone_name}</strong> (~{escalationData?.nearest_zone_distance_meters}m away). Lighting is poor in this sector.
+              <p className="text-xs font-medium text-[#450a0a]">
+                You are entering the unlit perimeter of <strong className="text-[#991b1b] underline">{escalationData?.nearest_zone_name}</strong> (~{escalationData?.nearest_zone_distance_meters}m away). Street illumination is critically compromised.
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2 w-full sm:w-auto">
             <button
-              onClick={calculateRoute}
-              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-full text-xs font-bold bg-[#006d62] hover:bg-[#075c54] text-white flex items-center justify-center space-x-1.5 shadow-[0_6px_16px_rgba(0,109,98,.18)] transition-all"
+              onClick={() => calculateRoute()}
+              className="flex-1 sm:flex-initial px-5 py-2.5 rounded-full text-xs font-black bg-[#dc2626] hover:bg-[#b91c1c] text-white flex items-center justify-center space-x-2 shadow-[0_6px_20px_rgba(220,38,38,0.45)] transition-all animate-pulse"
             >
-              <span>View safer route</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>Switch to Safe Route</span>
+              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </button>
           </div>
-        </div>
-      ) : (
-        <div className="p-3.5 px-4 rounded-2xl border border-[#c6e0d4] bg-[#edf7f2] flex items-center justify-between text-xs text-[#397066]">
-          <div className="flex items-center space-x-2.5">
-            <span className="w-2 h-2 rounded-full bg-[#1c9b73]"></span>
-            <span className="font-bold">You are in a lower-risk corridor • Kavach is watching your surroundings</span>
-          </div>
-          <span className="hidden sm:inline text-[#72827b] font-mono text-[11px]">
-            {selectedLocality?.area_name || "Patia"} • Grid Active
-          </span>
         </div>
       )}
 
@@ -438,18 +460,25 @@ export default function SafetyPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Map Column (2 Cols) */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="relative h-[540px] w-full rounded-2xl overflow-hidden border border-[#cfdad3] shadow-[0_12px_32px_rgba(23,51,47,0.10)]">
+          <div className={`relative h-[540px] w-full rounded-2xl overflow-hidden transition-all duration-300 ${
+            isElevatedRisk
+              ? "border-2 border-[#dc2626] alert-flash-border shadow-[0_16px_48px_rgba(220,38,38,0.35)]"
+              : "border border-[#cfdad3] shadow-[0_12px_32px_rgba(23,51,47,0.10)]"
+          }`}>
             <BhubaneswarMap
               userLocation={userLocation}
               riskZones={riskZones}
               heatmapCells={heatmapCells}
               recommendedRoute={showSafeRoute ? recommendedRoute : null}
-              alternativeRoute={showSafeRoute ? alternativeRoute : null}
+              alternativeRoutes={showSafeRoute ? alternativeRoutes : null}
+              activeRouteId={activeRouteId}
+              onSelectRoute={(id) => setActiveRouteId(id)}
               destinationLocation={showSafeRoute ? [selectedDestination.lat, selectedDestination.lng] : null}
               destinationName={selectedDestination.name}
               showHeatmap={showHeatmap}
               showRiskZones={showRiskZones}
               isEscalated={isElevatedRisk}
+              onSelectArea={(area) => setSelectedExplainabilityArea(area)}
             />
 
             {/* Floating Risk Score Badge on Map */}
@@ -471,35 +500,138 @@ export default function SafetyPage() {
             </div>
           </div>
 
-          {/* Safer Route Decision Card */}
+          {/* Explainability Drawer (Toggled by tapping map area or searching locality) */}
+          {selectedExplainabilityArea && (
+            <SafetyExplainabilityDrawer
+              data={selectedExplainabilityArea}
+              onClose={() => setSelectedExplainabilityArea(null)}
+              onRouteFromHere={(coords, name) => {
+                setUserLocation(coords);
+                calculateRoute();
+              }}
+            />
+          )}
+
+          {/* 3-Tier Comparative Route Selector: "Google Maps, but safety-aware" */}
           {recommendedRoute && showSafeRoute && (
-            <div className="p-4 rounded-2xl border border-[#b8d8cc] bg-[#edf7f2] space-y-2 shadow-[0_8px_20px_rgba(0,109,98,0.08)]">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <span className="text-xs font-bold text-[#006d62] flex items-center space-x-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-[#1c9b73] shrink-0" />
-                  <span>Safer Route: {recommendedRoute.name}</span>
-                </span>
-                <span className="text-xs font-mono text-[#65736f]">
-                  {recommendedRoute.total_distance_km} km • ~{recommendedRoute.estimated_time_mins} mins
-                </span>
-              </div>
-              <div className="text-[11px] font-bold text-[#17332f] flex flex-wrap items-center gap-1.5 pt-0.5">
-                <span className="text-[#65736f]">Heading to:</span>
-                <span className="rounded-full bg-[#d8eee5] px-2.5 py-0.5 text-[#006d62] border border-[#b8d8cc]">
-                  🎯 {selectedDestination.name}
-                </span>
-              </div>
-              <p className="text-xs text-[#52635c] leading-relaxed">
-                {recommendedRoute.factual_explanation}
-              </p>
-              {recommendedRoute.avoided_zones.length > 0 && (
-                <div className="text-xs text-[#65736f] flex items-center space-x-1.5 pt-1">
-                  <span>Bypassed unlit areas:</span>
-                  <span className="text-[#b04a32] font-bold">
-                    {recommendedRoute.avoided_zones.join(", ")}
+            <div className="space-y-3 p-4 rounded-2xl border border-[#b8d8cc] bg-[#fcfbf7] shadow-[0_8px_24px_rgba(23,51,47,0.06)]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-1 border-b border-[#e6ece8]">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-md bg-[#e5f5ed] border border-[#b8d8cc] flex items-center justify-center text-[#006d62]">
+                    <Route className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-[.08em] text-[#17332f]">
+                    Route Selection ({[recommendedRoute, ...alternativeRoutes].length} options)
                   </span>
                 </div>
-              )}
+                <span className="text-[11px] text-[#65736f]">
+                  Heading to: <strong className="text-[#17332f]">{selectedDestination.name}</strong>
+                </span>
+              </div>
+
+              {/* 3 Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* 1. Safest Route Card */}
+                <button
+                  type="button"
+                  onClick={() => setActiveRouteId(recommendedRoute.route_id)}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    activeRouteId === recommendedRoute.route_id || !activeRouteId
+                      ? "bg-[#edf7f2] border-[#006d62] shadow-sm ring-2 ring-[#006d62]/20"
+                      : "bg-[#fffdf8] border-[#dbe2dc] hover:border-[#b8d8cc]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-[#d8eee5] text-[#006d62]">
+                      🟢 Safest
+                    </span>
+                    <span className="text-xs font-black text-[#17332f]">
+                      ~{recommendedRoute.estimated_time_mins} min
+                    </span>
+                  </div>
+                  <div className="text-xs font-black text-[#17332f] truncate">
+                    {recommendedRoute.name}
+                  </div>
+                  <div className="text-[10px] text-[#52635c] mt-0.5">
+                    {recommendedRoute.total_distance_km} km • Lit boulevards &amp; CCTV
+                  </div>
+                </button>
+
+                {/* 2 & 3. Balanced and Fastest Alternatives */}
+                {alternativeRoutes.map((alt) => {
+                  const isFastest = alt.name.toLowerCase().includes("fastest") || alt.name.toLowerCase().includes("elevated");
+                  const isSelected = activeRouteId === alt.route_id;
+
+                  return (
+                    <button
+                      key={alt.route_id}
+                      type="button"
+                      onClick={() => setActiveRouteId(alt.route_id)}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? isFastest
+                            ? "bg-[#fef2f0] border-[#c0392b] shadow-sm ring-2 ring-[#c0392b]/20"
+                            : "bg-[#fef9ed] border-[#d97706] shadow-sm ring-2 ring-[#d97706]/20"
+                          : "bg-[#fffdf8] border-[#dbe2dc] hover:border-[#cfdad3]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                            isFastest
+                              ? "bg-[#fce4e1] text-[#c0392b]"
+                              : "bg-[#fef3c7] text-[#b45309]"
+                          }`}
+                        >
+                          {isFastest ? "🔴 Fastest" : "🟡 Balanced"}
+                        </span>
+                        <span className="text-xs font-black text-[#17332f]">
+                          ~{alt.estimated_time_mins} min
+                        </span>
+                      </div>
+                      <div className="text-xs font-black text-[#17332f] truncate">
+                        {alt.name}
+                      </div>
+                      <div className="text-[10px] text-[#52635c] mt-0.5">
+                        {alt.total_distance_km} km • {isFastest ? "Unlit shortcuts & hazards" : "Moderate lighting"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Active Route Detail Card */}
+              {(() => {
+                const currentRoute =
+                  activeRouteId === recommendedRoute.route_id || !activeRouteId
+                    ? recommendedRoute
+                    : alternativeRoutes.find((r) => r.route_id === activeRouteId) || recommendedRoute;
+
+                return (
+                  <div className="p-3.5 rounded-xl border border-[#dbe2dc] bg-[#fffdf8] text-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#17332f] flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#006d62]" />
+                        <span>{currentRoute.name}</span>
+                      </span>
+                      <span className="font-mono text-[#65736f]">
+                        {currentRoute.total_distance_km} km • ~{currentRoute.estimated_time_mins} mins
+                      </span>
+                    </div>
+                    <p className="text-[#52635c] leading-relaxed">
+                      {currentRoute.factual_explanation}
+                    </p>
+                    {currentRoute.avoided_zones.length > 0 && (
+                      <div className="text-[#65736f] flex items-center space-x-1.5 pt-0.5">
+                        <span>Bypassed unlit areas:</span>
+                        <span className="text-[#b04a32] font-bold">
+                          {currentRoute.avoided_zones.join(", ")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

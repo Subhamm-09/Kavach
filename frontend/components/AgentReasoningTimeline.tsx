@@ -12,11 +12,12 @@ import {
   FileText,
   MessageSquareHeart,
   Scale,
-  Cpu,
-  Clock,
+  Sparkles,
   ArrowRight,
   ChevronDown,
   ChevronUp,
+  Clock,
+  Cpu,
 } from "lucide-react";
 
 export interface TimelineItem {
@@ -64,112 +65,134 @@ const AGENT_ICONS: Record<string, any> = {
   EvidenceCompilerAgent: FileText,
 };
 
-export default function AgentReasoningTimeline({ events, activeAgent }: Props) {
-  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
+export default function AgentReasoningTimeline({ events }: Props) {
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+  const [showAllTechnical, setShowAllTechnical] = useState(false);
+
+  const toggleItem = (id: string) => {
+    setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col h-full shadow-xl">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+    <div className="rounded-2xl border border-[#cfdad3] bg-[#fffdf8] p-4 flex flex-col h-full shadow-[0_8px_24px_rgba(23,51,47,0.06)]">
+      {/* Header: Consumer Intelligence Title */}
+      <div className="flex items-center justify-between pb-3 border-b border-[#e6ece8] mb-3">
         <div className="flex items-center space-x-2">
-          <Cpu className="w-4 h-4 text-indigo-400" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-            Agent Activity & Decisions
-          </h3>
+          <div className="w-6 h-6 rounded-lg bg-[#e5f5ed] border border-[#b8d8cc] flex items-center justify-center text-[#006d62]">
+            <Sparkles className="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-[.08em] text-[#17332f]">
+              Safety Intelligence
+            </h3>
+          </div>
         </div>
 
-        <button
-          onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
-          className="text-[11px] font-medium text-slate-400 hover:text-slate-200 flex items-center space-x-1"
-        >
-          <span>{showTechnicalDetails ? "Simple view" : "Technical tools"}</span>
-          {showTechnicalDetails ? (
-            <ChevronUp className="w-3 h-3 ml-0.5" />
-          ) : (
-            <ChevronDown className="w-3 h-3 ml-0.5" />
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#eef1eb] text-[#65736f] border border-[#dbe2dc]">
+            {events.length} insight{events.length === 1 ? "" : "s"}
+          </span>
+          <button
+            onClick={() => setShowAllTechnical(!showAllTechnical)}
+            className="text-[11px] font-bold text-[#006d62] hover:text-[#075c54] flex items-center gap-1 transition-colors"
+          >
+            <span>{showAllTechnical ? "Hide technical" : "View reasoning →"}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Timeline Event Feed */}
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[460px]">
+      {/* Insight Feed */}
+      <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[480px]">
         {events.length === 0 ? (
-          <div className="text-center py-10 text-xs text-slate-500">
-            <Cpu className="w-7 h-7 mx-auto mb-2 opacity-30 text-slate-400" />
-            Monitoring live system activity...
+          <div className="text-center py-12 text-xs text-[#65736f]">
+            <Sparkles className="w-7 h-7 mx-auto mb-2 opacity-30 text-[#006d62]" />
+            Standing by. Live safety intelligence will appear as you travel.
           </div>
         ) : (
           events.map((ev, idx) => {
             const displayName = AGENT_DISPLAY_NAMES[ev.agent_name] || ev.agent_name;
             const Icon = AGENT_ICONS[ev.agent_name] || Cpu;
             const isCritical = ev.severity === "CRITICAL";
+            const isMedium = ev.severity === "MEDIUM" || ev.severity === "HIGH";
+            const isExpanded = showAllTechnical || Boolean(expandedItems[ev.event_id || String(idx)]);
+
             const timeStr = ev.timestamp
-              ? new Date(ev.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+              ? new Date(ev.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
               : "Just now";
 
             return (
               <div
                 key={ev.event_id || idx}
-                className="relative pl-5 pb-1 before:absolute before:left-2 before:top-2 before:bottom-0 before:w-px before:bg-slate-800 last:before:hidden"
+                className={`rounded-xl p-3 border transition-all ${
+                  isCritical
+                    ? "bg-[#fef2f0] border-[#e5a9a0] shadow-sm"
+                    : isMedium
+                    ? "bg-[#fff9ed] border-[#fae5b0]"
+                    : "bg-[#fffdf8] border-[#e6ece8] hover:border-[#cfdad3]"
+                }`}
               >
-                {/* Status Dot */}
-                <div
-                  className={`absolute left-0 top-1.5 w-4 h-4 rounded-full border flex items-center justify-center ${
-                    isCritical
-                      ? "border-red-500 bg-red-950/80 text-red-400"
-                      : "border-indigo-500/40 bg-indigo-950/60 text-indigo-400"
-                  }`}
-                >
-                  <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                {/* Header: Human-Readable Insight Title & Time */}
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs">
+                      {isCritical ? "🔴" : isMedium ? "🟠" : "🟢"}
+                    </span>
+                    <span className="text-xs font-black text-[#17332f] leading-snug">
+                      {ev.action}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold text-[#65736f] shrink-0">
+                    {timeStr}
+                  </span>
                 </div>
 
-                <div
-                  className={`rounded-xl p-3 border transition-colors ${
-                    isCritical
-                      ? "bg-red-950/20 border-red-500/30"
-                      : "bg-slate-950/60 border-slate-800/80 hover:border-slate-700"
-                  }`}
-                >
-                  {/* Title Bar */}
-                  <div className="flex items-center justify-between gap-1 mb-1">
-                    <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-200">
-                      <Icon className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{displayName}</span>
-                    </div>
-                    <span className="text-[10px] text-slate-500">{timeStr}</span>
-                  </div>
-
-                  {/* Plain Language Action */}
-                  <div className="text-xs text-slate-300 font-medium leading-snug">
-                    {ev.action}
-                  </div>
-
-                  {/* Output Summary */}
-                  <div className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    {ev.output_summary}
-                  </div>
-
-                  {/* Technical Tool Tag if enabled */}
-                  {showTechnicalDetails && ev.tool_invoked && (
-                    <div className="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center space-x-2 text-[10px] font-mono text-cyan-400">
-                      <span className="text-slate-500">Tool:</span>
-                      <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">
-                        {ev.tool_invoked}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Handoff Indicator */}
-                  {ev.handoff_to && (
-                    <div className="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center space-x-1.5 text-[11px] font-semibold text-amber-400">
-                      <span>Handoff to:</span>
-                      <ArrowRight className="w-3 h-3" />
-                      <span className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-[10px]">
-                        {AGENT_DISPLAY_NAMES[ev.handoff_to] || ev.handoff_to}
-                      </span>
-                    </div>
-                  )}
+                {/* Plain-Language Intelligence Summary */}
+                <div className="text-xs text-[#52635c] mt-0.5 leading-relaxed">
+                  {ev.output_summary}
                 </div>
+
+                {/* Micro Toggle for Deep Agent Reasoning */}
+                <div className="mt-2 pt-2 border-t border-[#e6ece8]/80 flex items-center justify-between text-[10px]">
+                  <button
+                    onClick={() => toggleItem(ev.event_id || String(idx))}
+                    className="inline-flex items-center gap-1 font-bold text-[#006d62] hover:text-[#075c54]"
+                  >
+                    <span>{isExpanded ? "Hide agent reasoning" : "Agent reasoning →"}</span>
+                    {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+
+                  <span className="text-[#8e9c96] font-medium">
+                    {displayName}
+                  </span>
+                </div>
+
+                {/* Deep Hackathon Architecture Drawer (Revealed on click) */}
+                {isExpanded && (
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-[#f4f7f4] border border-[#d6e2db] space-y-1.5 text-[10px] font-mono text-[#285048] animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#65736f]">Active Agent:</span>
+                      <strong className="text-[#006d62]">{displayName}</strong>
+                    </div>
+
+                    {ev.tool_invoked && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#65736f]">Tool Dispatched:</span>
+                        <code className="px-1.5 py-0.5 rounded bg-[#fffdf8] border border-[#cfdad3] text-[#17332f]">
+                          {ev.tool_invoked}
+                        </code>
+                      </div>
+                    )}
+
+                    {ev.handoff_to && (
+                      <div className="flex items-center justify-between pt-1 border-t border-[#d6e2db]">
+                        <span className="text-[#c0392b] font-bold">Autonomous Handoff:</span>
+                        <span className="text-[#c0392b] font-bold">
+                          ➔ {AGENT_DISPLAY_NAMES[ev.handoff_to] || ev.handoff_to}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })

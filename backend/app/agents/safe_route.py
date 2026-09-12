@@ -23,7 +23,7 @@ class SafeRouteAgentNode:
         dest_lng: Optional[float] = None,
     ) -> KavachGraphState:
         """Calculate safety-optimized routing options."""
-        loc = state.get("location", {})
+        loc = state.get("location") or {}
         o_lat = origin_lat or loc.get("lat", 20.3550)
         o_lng = origin_lng or loc.get("lng", 85.8180)
         d_lat = dest_lat or 20.2660  # Default to Master Canteen

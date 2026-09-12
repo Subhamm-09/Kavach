@@ -27,6 +27,7 @@ class TherapyAgentNode:
         user_lat: Optional[float] = None,
         user_lng: Optional[float] = None,
         user_id: Optional[str] = None,
+        skip_generation: bool = False,
     ) -> Dict[str, Any]:
         """Process incoming therapy message:
         1. Find or create ChatSession
@@ -66,12 +67,15 @@ class TherapyAgentNode:
         distress_level = distress_analysis.get("distress_level", "NONE")
         handoff_required = distress_analysis.get("guardian_handoff_required", False)
 
-        # Generate response
-        therapy_response_text = await ai_provider.generate_therapy_response(
-            message_text=user_message,
-            conversation_history=history,
-            distress_level=distress_level,
-        )
+        # Generate response (skip if downstream ResponseSynthesizer will generate it)
+        if skip_generation:
+            therapy_response_text = "I am listening closely and supporting your safety."
+        else:
+            therapy_response_text = await ai_provider.generate_therapy_response(
+                message_text=user_message,
+                conversation_history=history,
+                distress_level=distress_level,
+            )
 
         # Prepare Guardian handoff metadata
         guardian_handoff = None
@@ -129,7 +133,7 @@ class TherapyAgentNode:
         """LangGraph execution node for Therapy Agent."""
         user_msg = state.get("raw_input", "")
         session_id = state.get("session_id", str(uuid.uuid4()))
-        loc = state.get("location", {})
+        loc = state.get("location") or {}
 
         result = await cls.process_chat_message(
             db=db,
@@ -138,6 +142,7 @@ class TherapyAgentNode:
             user_lat=loc.get("lat"),
             user_lng=loc.get("lng"),
             user_id=state.get("user_id"),
+            skip_generation=True,
         )
 
         state["previous_agent"] = state.get("current_agent")

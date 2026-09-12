@@ -1,9 +1,10 @@
 """Gemini AI Provider using the official Google GenAI SDK.
-Falls back automatically to DeterministicFallbackProvider if GEMINI_API_KEY is unset or fails.
+Falls back automatically to DeterministicFallbackProvider if GEMINI_API_KEY is unset, rate-limited, or fails.
 """
 
 import os
 import json
+import time
 from typing import Dict, Any, List, Optional
 from google import genai
 from google.genai import types
@@ -27,18 +28,63 @@ def _parse_json_defensively(raw_text: str) -> Dict[str, Any]:
 
 
 class GeminiProvider(BaseAIProvider):
-    """Google Gemini AI Provider implementation using asynchronous non-blocking client."""
+    """Google Gemini AI Provider implementation with async client and auto-recovering circuit-breaker fallback."""
 
     def __init__(self):
         self.fallback = DeterministicFallbackProvider()
-        self.api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
+        self.api_key = (settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")).strip()
         self.client = None
+        self.quota_exhausted_until = 0.0
         if self.api_key:
             try:
-                self.client = genai.Client(api_key=self.api_key)
+                self.client = genai.Client(
+                    api_key=self.api_key,
+                    http_options=types.HttpOptions(
+                        retry_options=types.HttpRetryOptions(attempts=1)
+                    )
+                )
             except Exception as e:
                 print(f"[GEMINI INIT WARNING] Failed to initialize Gemini client: {e}")
                 self.client = None
+
+    @property
+    def is_available(self) -> bool:
+        """Check if Gemini client is active and not in a temporary rate-limit cooldown window."""
+        if not self.client:
+            return False
+        if time.time() < self.quota_exhausted_until:
+            return False
+        return True
+
+    def _handle_failure(self, err: Exception, stage: str):
+        err_str = str(err)
+        if any(code in err_str for code in ["400", "401", "403", "429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "INVALID_ARGUMENT", "quota"]):
+            self.quota_exhausted_until = time.time() + 45.0
+            print(f"[GEMINI CIRCUIT BREAKER] {stage} rate-limited or unavailable ({err_str[:90]}). Temporary 45s fallback active.")
+        else:
+            print(f"[GEMINI CALL FALLBACK] {stage} failed ({err_str[:90]}), using fallback.")
+
+    async def _generate_content_resilient(self, prompt: str, config: Optional[types.GenerateContentConfig] = None) -> Any:
+        """Attempt primary configured model asynchronously; if 503 or transient failure, try fallback model."""
+        models_to_try = [settings.GEMINI_MODEL]
+        if "flash-latest" not in settings.GEMINI_MODEL:
+            models_to_try.append("gemini-flash-latest")
+
+        last_err = None
+        for m in models_to_try:
+            try:
+                kwargs = {"model": m, "contents": prompt}
+                if config:
+                    kwargs["config"] = config
+                return await self.client.aio.models.generate_content(**kwargs)
+            except Exception as e:
+                last_err = e
+                err_str = str(e)
+                if "503" in err_str or "UNAVAILABLE" in err_str:
+                    print(f"[GEMINI RETRY] Model {m} busy (503), trying secondary model...")
+                    continue
+                raise e
+        raise last_err
 
     async def classify_guardian_signal(
         self,
@@ -46,8 +92,11 @@ class GeminiProvider(BaseAIProvider):
         raw_input: str,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Classify incoming signal asynchronously using Gemini structured JSON response."""
-        if not self.client:
+        """Classify incoming signal using fast heuristics for standard workflows, reserving LLM for complex queries."""
+        if signal_type in ["THERAPY_CHAT", "CHAT_CUE", "GPS_PING", "PROXIMITY_EVENT"]:
+            return await self.fallback.classify_guardian_signal(signal_type, raw_input, context)
+
+        if not self.is_available:
             return await self.fallback.classify_guardian_signal(signal_type, raw_input, context)
 
         prompt = f"""You are the Guardian Orchestrator Agent for KAVACH, an agentic safety platform in Bhubaneswar.
@@ -69,9 +118,8 @@ Respond with a valid JSON object matching this schema:
 }}
 """
         try:
-            response = await self.client.aio.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
+            response = await self._generate_content_resilient(
+                prompt=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     temperature=0.1,
@@ -80,7 +128,7 @@ Respond with a valid JSON object matching this schema:
             result = _parse_json_defensively(response.text)
             return result
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Guardian classification failed ({e}), using fallback.")
+            self._handle_failure(e, "Guardian classification")
             return await self.fallback.classify_guardian_signal(signal_type, raw_input, context)
 
     async def analyze_therapy_distress(
@@ -88,39 +136,8 @@ Respond with a valid JSON object matching this schema:
         message_text: str,
         conversation_history: List[Dict[str, str]]
     ) -> Dict[str, Any]:
-        """Analyze message for distress or imminent danger asynchronously using Gemini."""
-        if not self.client:
-            return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
-
-        prompt = f"""You are the Therapy Agent's safety perception module for KAVACH.
-Analyze the user's message for distress and imminent safety risks (e.g. stalking, being followed, unsafe area, physical threat).
-
-Message: "{message_text}"
-
-Respond with JSON:
-{{
-  "is_distressed": <bool>,
-  "distress_level": "NONE" | "MILD" | "ELEVATED" | "IMMINENT_DANGER",
-  "distress_score": <float 0.0 to 1.0>,
-  "detected_intent": "<string>",
-  "trigger_cues": ["<extracted words or phrases>", ...],
-  "guardian_handoff_required": <bool>,
-  "recommended_action": "<string>"
-}}
-"""
-        try:
-            response = await self.client.aio.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.1,
-                )
-            )
-            return _parse_json_defensively(response.text)
-        except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Therapy analysis failed ({e}), using fallback.")
-            return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
+        """Analyze message for distress or imminent danger using deterministic safety perception, reserving LLM for synthesis."""
+        return await self.fallback.analyze_therapy_distress(message_text, conversation_history)
 
     async def generate_therapy_response(
         self,
@@ -129,7 +146,7 @@ Respond with JSON:
         distress_level: str
     ) -> str:
         """Generate trauma-informed conversational response asynchronously using Gemini."""
-        if not self.client:
+        if not self.is_available:
             return await self.fallback.generate_therapy_response(message_text, conversation_history, distress_level)
 
         prompt = f"""You are the Therapy Agent for KAVACH, a trauma-informed safety platform in India.
@@ -144,14 +161,13 @@ User Message: "{message_text}"
 Distress Level: {distress_level}
 """
         try:
-            response = await self.client.aio.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
+            response = await self._generate_content_resilient(
+                prompt=prompt,
                 config=types.GenerateContentConfig(temperature=0.3)
             )
             return response.text.strip()
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Therapy response generation failed ({e}), using fallback.")
+            self._handle_failure(e, "Therapy response generation")
             return await self.fallback.generate_therapy_response(message_text, conversation_history, distress_level)
 
     async def draft_formal_complaint(
@@ -163,7 +179,7 @@ Distress Level: {distress_level}
         complainant_name: str
     ) -> str:
         """Draft formal statutory police complaint asynchronously using Gemini."""
-        if not self.client:
+        if not self.is_available:
             return await self.fallback.draft_formal_complaint(
                 incident_narrative, perpetrator_details, citations, police_station, complainant_name
             )
@@ -181,19 +197,153 @@ Retrieved Legal Citations:
 Format the output cleanly as a formal legal complaint letter.
 """
         try:
-            response = await self.client.aio.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
+            response = await self._generate_content_resilient(
+                prompt=prompt,
                 config=types.GenerateContentConfig(temperature=0.2)
             )
             return response.text.strip()
         except Exception as e:
-            print(f"[GEMINI CALL FALLBACK] Complaint drafting failed ({e}), using fallback.")
+            self._handle_failure(e, "Complaint drafting")
             return await self.fallback.draft_formal_complaint(
                 incident_narrative, perpetrator_details, citations, police_station, complainant_name
             )
 
+    async def analyze_emotion(
+        self,
+        message_text: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
+        """Classify emotional state using deterministic affective perception, reserving LLM tokens for response synthesis."""
+        return await self.fallback.analyze_emotion(message_text, conversation_history)
+
+    async def classify_chat_intent(
+        self,
+        message_text: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
+        """Classify conversational intent using deterministic rule routing, reserving LLM tokens for response synthesis."""
+        return await self.fallback.classify_chat_intent(message_text, conversation_history)
+
+    async def synthesize_final_response(
+        self,
+        user_message: str,
+        therapy_res: Optional[Dict[str, Any]] = None,
+        legal_res: Optional[Dict[str, Any]] = None,
+        memories: Optional[List[str]] = None,
+        emotion_res: Optional[Dict[str, Any]] = None,
+        route_res: Optional[Dict[str, Any]] = None,
+        proximity_res: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Node 1: Dedicated Final Response Node.
+        Synthesizes a warm, humanized, trauma-informed response while strictly concealing internal reasoning.
+        """
+        if not self.is_available:
+            return await self.fallback.synthesize_final_response(
+                user_message=user_message,
+                therapy_res=therapy_res,
+                legal_res=legal_res,
+                memories=memories,
+                emotion_res=emotion_res,
+                route_res=route_res,
+                proximity_res=proximity_res
+            )
+
+        emotion_info = emotion_res or {}
+        intensity = emotion_info.get("intensity", 3)
+        emotion = emotion_info.get("emotion", "neutral")
+
+        system_instruction = f"""You are Kavach.
+You support users experiencing:
+- harassment
+- discrimination
+- stalking
+- abuse
+- unsafe situations
+- emotional distress
+
+Your goal:
+Make users feel heard, understood, supported, and informed.
+
+=========================================
+STRICT PRIVACY & CONCEALMENT RULES
+=========================================
+NEVER reveal or mention:
+- risk classifications (e.g., 'Risk: harassment', 'Severity: HIGH')
+- intent classifications
+- emotion classifications (e.g., 'Emotion: fear, Intensity: 8')
+- workflow traces or node names (e.g., 'Guardian', 'TherapyAgent', 'SafeRouteAgent')
+- node outputs or diagnostic summaries
+- reasoning chains or chain of thought
+- memory retrieval mechanisms
+- RAG systems or database names
+
+=========================================
+HUMANIZATION & TONE RULES
+=========================================
+- Do not sound like customer support, a legal disclaimer, a call center, or a workflow engine.
+- AVOID robotic openings such as:
+  * "Thank you for sharing."
+  * "I understand your concern."
+  * "I am here to help."
+- Use natural conversation variation:
+  * "That sounds unsettling."
+  * "Can you tell me more about that?"
+  * "How long has this been happening?"
+  * "What happened next?"
+- Default response length: 2 to 6 sentences.
+- Adapt tone to emotional intensity (Current Emotion: {emotion}, Intensity: {intensity}/10).
+  * If intensity >= 7 (Fear/Panic): Keep sentences concise, grounding, and focused on current physical safety.
+  * If intensity <= 4: Offer thoughtful context and clear options.
+- Reference relevant memories naturally without saying 'According to our stored memories'.
+- Integrate legal information conversationally without quoting penal codes like an interrogation.
+The user should never feel they are talking to a workflow.
+"""
+
+        context_payload = {
+            "user_message": user_message,
+            "therapy_output": therapy_res.get("text") if therapy_res else None,
+            "legal_guidance": legal_res.get("answer") if legal_res else None,
+            "legal_sections": legal_res.get("applicable_sections") if legal_res else None,
+            "relevant_memories": memories or [],
+            "route_summary": route_res.get("recommended_route", {}).get("name") if route_res else None,
+            "proximity_alert": proximity_res.get("nearest_zone_name") if proximity_res and proximity_res.get("escalation_triggered") else None
+        }
+
+        user_prompt = f"""CONTEXT AVAILABLE:
+{json.dumps(context_payload, indent=2)}
+
+CURRENT USER MESSAGE:
+{user_message}
+
+Generate the final, natural user-facing response:"""
+
+        try:
+            res = await self._generate_content_resilient(
+                prompt=f"{system_instruction}\n\n{user_prompt}",
+                config=types.GenerateContentConfig(temperature=0.35)
+            )
+            return res.text.strip()
+        except Exception as e:
+            self._handle_failure(e, "Final response synthesis")
+            return await self.fallback.synthesize_final_response(
+                user_message=user_message,
+                therapy_res=therapy_res,
+                legal_res=legal_res,
+                memories=memories,
+                emotion_res=emotion_res,
+                route_res=route_res,
+                proximity_res=proximity_res
+            )
+
+    async def chatbot_extract_memory(
+        self,
+        user_message: str,
+        final_response: str
+    ) -> Dict[str, Any]:
+        """Decide whether to persist high-salience long-term memory."""
+        # Fast heuristic extraction saves LLM quota for synthesis while preserving accuracy
+        return await self.fallback.chatbot_extract_memory(user_message, final_response)
+
 
 # Global AI Provider instance
 ai_provider = GeminiProvider()
-
