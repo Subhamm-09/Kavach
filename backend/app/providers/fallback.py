@@ -57,7 +57,13 @@ class DeterministicFallbackProvider(BaseAIProvider):
 
         # 2. Therapy Chat signal
         if signal_type in ["THERAPY_CHAT", "CHAT_CUE"]:
-            danger_keywords = ["following me", "stalking", "not safe", "scared", "someone is behind", "help me", "danger", "hurt", "trapped", "attacking"]
+            danger_keywords = [
+                "following me", "stalking", "stalker", "not safe", "scared", "someone is behind",
+                "help me", "danger", "hurt", "im hurt", "i'm hurt", "bleeding", "injured", "pain",
+                "trapped", "cornered", "attacking", "attacked", "hit me", "punched",
+                "touched", "groped", "molested", "assault", "assaulted", "forced",
+                "knife", "weapon", "emergency", "sos", "112", "108", "address"
+            ]
             is_danger = any(k in text_lower for k in danger_keywords)
             
             if is_danger:
@@ -122,9 +128,24 @@ class DeterministicFallbackProvider(BaseAIProvider):
         conversation_history: List[Dict[str, str]]
     ) -> Dict[str, Any]:
         """Deterministic distress classifier."""
-        text_lower = message_text.lower()
-        imminent_danger_cues = ["following me", "stalking", "danger", "someone is following", "help me", "hurt me", "cornered", "scared", "don't feel safe", "unlit alley"]
-        emotional_distress_cues = ["anxious", "overwhelmed", "shaking", "panic", "crying", "trauma", "afraid"]
+        text_lower = (message_text or "").lower()
+        imminent_danger_cues = [
+            "following me", "stalking", "stalker", "someone is following", "he is following",
+            "trailing me", "chasing", "cornered", "trapped",
+            "danger", "help me", "hurt me", "hurt", "im hurt", "i'm hurt", "bleeding",
+            "injured", "injury", "in pain", "hit me", "punched", "beaten", "attacked",
+            "scared", "don't feel safe", "unlit alley", "not safe",
+            "touched", "touched me", "touched inappropriately", "groped", "molested",
+            "assault", "assaulted", "forced me", "unwanted touch",
+            "knife", "weapon", "gun", "threatened", "threaten", "kill me", "grabbed me",
+            "emergency", "sos", "call police", "call ambulance", "call 112", "call 108",
+            "knows my address", "outside my house", "outside my home", "at my door", "save me"
+        ]
+        emotional_distress_cues = [
+            "anxious", "anxiety", "overwhelmed", "shaking", "panic", "panicking",
+            "crying", "trauma", "afraid", "terrified", "frightened", "alone",
+            "nervous", "uneasy", "distressed", "creepy", "uncomfortable"
+        ]
 
         detected_cues = [c for c in imminent_danger_cues if c in text_lower]
         emo_cues = [c for c in emotional_distress_cues if c in text_lower]
@@ -133,7 +154,7 @@ class DeterministicFallbackProvider(BaseAIProvider):
             return {
                 "is_distressed": True,
                 "distress_level": "IMMINENT_DANGER",
-                "distress_score": 0.92,
+                "distress_score": 0.95,
                 "detected_intent": "IMMINENT_DANGER",
                 "trigger_cues": detected_cues,
                 "guardian_handoff_required": True,
@@ -143,7 +164,7 @@ class DeterministicFallbackProvider(BaseAIProvider):
             return {
                 "is_distressed": True,
                 "distress_level": "ELEVATED",
-                "distress_score": 0.65,
+                "distress_score": 0.70,
                 "detected_intent": "EMOTIONAL_DISTRESS",
                 "trigger_cues": emo_cues,
                 "guardian_handoff_required": False,
@@ -170,6 +191,29 @@ class DeterministicFallbackProvider(BaseAIProvider):
         text = (message_text or "").lower()
 
         if distress_level == "IMMINENT_DANGER":
+            # Acute physical injury
+            if any(k in text for k in ["bleeding", "hurt", "injured", "pain", "broken", "ambulance"]):
+                return (
+                    "Please focus on your immediate physical safety right now. "
+                    "If you are injured or bleeding, call Emergency Medical Services (108) or Police (112) immediately. "
+                    "Move to a safe, well-lit place where people or shopkeepers are nearby to assist you while help is on the way."
+                )
+            # Assault / inappropriate touch
+            if any(k in text for k in ["touched", "groped", "molested", "assault", "forced"]):
+                return (
+                    "What happened is completely wrong and is a punishable offense under Bharatiya Nyaya Sanhita (BNS § 74/75). "
+                    "Please get to a safe, populated, or well-lit space where you feel secure. "
+                    "You can reach the Women Helpline (1091) or Emergency Police (112) right away for immediate support. "
+                    "Whenever you feel ready, we can securely record the details or walk through your protective options."
+                )
+            # Severe stalking / address known
+            if any(k in text for k in ["knows my address", "outside my house", "outside my home", "at my door"]):
+                return (
+                    "This is a serious escalation. Ensure all doors and windows are securely locked immediately. "
+                    "Call Odisha Police (112) immediately so a patrol unit can be sent to your location. "
+                    "If possible, call a trusted friend, family member, or neighbour to stay with you right now."
+                )
+            # Default imminent danger (outdoor pursuit / following)
             return (
                 "Your physical safety is the absolute priority right now. "
                 "If you are outdoors, immediately move toward an open shop, well-lit petrol pump, or main road where other people are present. "
@@ -445,6 +489,7 @@ Yours sincerely,
         emotion_res: Optional[Dict[str, Any]] = None,
         route_res: Optional[Dict[str, Any]] = None,
         proximity_res: Optional[Dict[str, Any]] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> str:
         """Deterministic synthesis of humanized response respecting all safety and tone rules."""
         raw_text = (user_message or "").lower()
@@ -452,7 +497,32 @@ Yours sincerely,
         emotion = emotion_res.get("emotion", "neutral")
         intensity = emotion_res.get("intensity", 3)
 
-        # 1. Workplace / Coworker / Boss harassment
+        # 0. Acute Physical Injury & Medical Emergency
+        if any(k in raw_text for k in ["bleeding", "im hurt", "i'm hurt", "hurt", "injured", "injury", "broken", "ambulance", "in pain"]):
+            return (
+                "Please focus on your immediate physical safety right now. "
+                "If you are bleeding or injured, call Emergency Medical Services (108) or Police (112) immediately. "
+                "Move to a safe, visible, and well-lit area or approach nearby people or an open shop for assistance while emergency help is on the way."
+            )
+
+        # 1. Sexual Harassment / Inappropriate Touch / Assault
+        if any(k in raw_text for k in ["touched inappropriately", "touched me", "touched", "groped", "molested", "assaulted", "assault", "forced me", "unwanted touch"]):
+            return (
+                "What happened is completely wrong and is a punishable offense under Bharatiya Nyaya Sanhita (BNS § 74/75). "
+                "First, get to a safe, populated, or well-lit space where you feel secure. "
+                "You can connect directly with the Women Helpline (1091) or Emergency Police (112) for immediate protection. "
+                "Whenever you feel ready, we can also quietly log the incident details to preserve evidence for legal action."
+            )
+
+        # 2. Stalker Knows Address / Immediate Threat at Residence
+        if any(k in raw_text for k in ["knows my address", "knows where i live", "outside my house", "outside my home", "at my door"]):
+            return (
+                "This is a serious escalation. Ensure all doors and windows are securely locked immediately, and do not confront anyone outside. "
+                "Contact Odisha Police (112) immediately so a patrol unit can be dispatched to your location. "
+                "If possible, inform a trusted neighbour, family member, or friend to be with you right now."
+            )
+
+        # 3. Workplace / Coworker / Boss harassment
         if any(k in raw_text for k in ["coworker", "colleague", "manager", "boss", "office", "workplace"]):
             mem_note = " I remember this has happened before with this person. " if memories else " "
             if any(k in raw_text for k in ["what should i do", "how to handle", "advice", "what can i do"]):

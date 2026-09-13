@@ -44,6 +44,7 @@ class KavachGraphState(TypedDict, total=False):
     emotion_result: Optional[Dict[str, Any]]  # {"emotion": "anxiety", "intensity": 7, "triggers": [...]}
     memory_result: Optional[Dict[str, Any]]   # {"retrieved_memories": [...]}
     chat_intent: Optional[str]               # emotional_support, general_chat, legal_information, etc.
+    conversation_history: Optional[List[Dict[str, str]]]
     
     # System & Case Tracking
     open_case_ids: Optional[List[str]]

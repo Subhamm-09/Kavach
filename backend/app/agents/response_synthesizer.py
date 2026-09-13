@@ -40,7 +40,8 @@ class ResponseSynthesizerAgentNode:
             memories=memories,
             emotion_res=emotion_res,
             route_res=route_res,
-            proximity_res=proximity_res
+            proximity_res=proximity_res,
+            conversation_history=state.get("conversation_history", [])
         )
 
         intensity = emotion_res.get("intensity", 3) if emotion_res else 3

@@ -125,6 +125,7 @@ class TherapyAgentNode:
             "text": therapy_response_text,
             "distress_analysis": distress_analysis,
             "guardian_handoff": guardian_handoff,
+            "conversation_history": history,
             "timestamp": agent_msg_record.created_at,
         }
 
@@ -148,6 +149,7 @@ class TherapyAgentNode:
         state["previous_agent"] = state.get("current_agent")
         state["current_agent"] = "TherapyAgent"
         state["therapy_result"] = result
+        state["conversation_history"] = result.get("conversation_history", [])
 
         distress_level = result["distress_analysis"].get("distress_level", "NONE")
         is_handoff = result["distress_analysis"].get("guardian_handoff_required", False)

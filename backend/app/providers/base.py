@@ -76,6 +76,7 @@ class BaseAIProvider(ABC):
         emotion_res: Optional[Dict[str, Any]] = None,
         route_res: Optional[Dict[str, Any]] = None,
         proximity_res: Optional[Dict[str, Any]] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> str:
         """Synthesize humanized final user response, hiding all internal workflow traces."""
         pass
