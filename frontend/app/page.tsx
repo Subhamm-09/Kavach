@@ -52,19 +52,13 @@ const actions = [
   },
 ];
 
-const loadingImages = [
-  { src: "/1.jpeg", label: "INVOCATION", id: "01" },
-  { src: "/2.jpeg", label: "PATAKA • SANCTUARY", id: "02" },
-  { src: "/3.jpeg", label: "SAMPUTA • EMBRACE", id: "03" },
-  { src: "/4.jpeg", label: "ABHAYA • FEARLESS", id: "04" },
-];
+const loadingImages = ["/1.jpeg", "/2.jpeg", "/3.jpeg", "/4.jpeg"];
 
 export default function HomePage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const heroRef = useRef<HTMLDivElement | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isLoading, setIsLoading] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState(0);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isExitTransition, setIsExitTransition] = useState(false);
 
@@ -256,7 +250,7 @@ export default function HomePage() {
     };
   }, []);
 
-  // Cinematic Mint Green Loading Experience (Rapid mudra cycle on refresh / page load)
+  // Minimalist Cinematic Mint Loading (Pure visual rapid cycle on load/refresh)
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -271,178 +265,68 @@ export default function HomePage() {
       return;
     }
 
-    const duration = 3800; // 3.8s total duration
-    const intervalTime = 220; // 220ms rapid shutter cycle
-    const startTime = Date.now();
+    const duration = 3600; // 3.6s total duration
+    const intervalTime = 220; // 220ms rapid shutter cut
 
     // Rapid sequential cycling across images 1, 2, 3, 4
     const cycleTimer = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % loadingImages.length);
     }, intervalTime);
 
-    // Continuous 60fps luxury progress tracking
-    let animId: number;
-    const trackProgress = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min((elapsed / duration) * 100, 100);
-      setLoadingProgress(progress);
-
-      if (elapsed < duration) {
-        animId = requestAnimationFrame(trackProgress);
-      } else {
-        clearInterval(cycleTimer);
-        setIsExitTransition(true);
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 700); // 700ms graceful curtain dissolve
-      }
-    };
-    animId = requestAnimationFrame(trackProgress);
+    const exitTimer = setTimeout(() => {
+      clearInterval(cycleTimer);
+      setIsExitTransition(true);
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 700); // 700ms smooth dissolve
+    }, duration);
 
     return () => {
       clearInterval(cycleTimer);
-      cancelAnimationFrame(animId);
+      clearTimeout(exitTimer);
     };
   }, []);
 
   return (
     <div className="space-y-16 pb-16">
       {/* ========================================================================= */}
-      {/* CINEMATIC MINT GREEN LOADING SCREEN (Intentional Mudra Suite Montage)     */}
+      {/* MINIMALIST CINEMATIC MINT LOADING SCREEN (Pure Background & Images Only)   */}
       {/* ========================================================================= */}
       {isLoading && (
         <div
           role="status"
-          aria-live="polite"
-          aria-label="Kavach Platform Initialization"
-          className={`fixed inset-0 z-[9999] flex flex-col justify-between items-center px-6 py-8 sm:px-12 sm:py-10 select-none transition-opacity duration-700 ease-out ${
+          aria-label="Loading"
+          className={`fixed inset-0 z-[9999] flex items-center justify-center p-6 select-none transition-opacity duration-700 ease-out ${
             isExitTransition ? "opacity-0 pointer-events-none" : "opacity-100"
           }`}
           style={{
             backgroundColor: "#dff4ee",
             backgroundImage:
-              "radial-gradient(ellipse 70% 60% at 50% 45%, #eff9f4 0%, #dcf1e9 55%, #c8e8db 100%)",
+              "radial-gradient(ellipse 70% 60% at 50% 50%, #eff9f4 0%, #dcf1e9 55%, #c8e8db 100%)",
           }}
         >
-          {/* Subtle Ambient Spatial Coordinate Grid */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-25 bg-[linear-gradient(to_right,#006d62_1px,transparent_1px),linear-gradient(to_bottom,#006d62_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_50%,#000_65%,transparent_100%)]"
-            aria-hidden="true"
-          />
-
-          {/* Top Luxury Header */}
-          <header className="relative z-10 w-full max-w-5xl flex items-center justify-between">
-            <div className="inline-flex items-center gap-2.5 rounded-full border border-[#b8dfce] bg-[#ffffff]/80 backdrop-blur-md px-3.5 py-1.5 shadow-[0_2px_12px_rgba(0,109,98,0.06)]">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1c9b73] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1c9b73]" />
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-[0.22em] text-[#006d62]">
-                Kavach • Intelligence
-              </span>
-            </div>
-
-            <div className="text-[9px] sm:text-[10px] font-mono font-bold tracking-[0.18em] text-[#426b60] uppercase">
-              BHUBANESWAR // 20.3551° N • 85.8181° E
-            </div>
-          </header>
-
-          {/* Centerpiece: Rapid Cinematic Mudra Mount */}
-          <main className="relative z-10 flex flex-col items-center justify-center my-auto space-y-6">
-            <div className="relative">
-              {/* Outer Protective Orbital Halo */}
-              <div className="absolute -inset-4 sm:-inset-6 rounded-[38px] sm:rounded-[46px] border border-[#1c9b73]/25 animate-pulse pointer-events-none" />
-
-              {/* Dashed Tracking Ring */}
-              <div className="absolute -inset-8 sm:-inset-10 rounded-[46px] sm:rounded-[54px] border border-dashed border-[#006d62]/20 animate-[spin_50s_linear_infinite] pointer-events-none" />
-
-              {/* Radial Glow Beneath Gallery Frame */}
-              <div className="absolute -inset-10 bg-[radial-gradient(circle,rgba(28,155,115,0.2)_0%,transparent_70%)] blur-xl pointer-events-none" />
-
-              {/* Gallery Mount Frame */}
-              <div className="relative w-[280px] h-[280px] sm:w-[340px] sm:h-[340px] md:w-[380px] md:h-[380px] rounded-[30px] sm:rounded-[38px] overflow-hidden shadow-[0_28px_80px_rgba(23,51,47,0.22),0_4px_24px_rgba(0,109,98,0.12)] border-2 border-[#b8dfce] ring-8 ring-[#c7f9e5]/60 bg-[#081210]">
-                {/* Preloaded Images for Instantaneous Shutter Transition */}
-                {loadingImages.map((img, idx) => (
-                  <div
-                    key={img.src}
-                    className={`absolute inset-0 transition-opacity duration-150 ease-out ${
-                      idx === currentImageIndex
-                        ? "opacity-100 z-10 scale-100"
-                        : "opacity-0 z-0 scale-[0.98]"
-                    }`}
-                  >
-                    <Image
-                      src={img.src}
-                      alt={img.label}
-                      width={1080}
-                      height={1080}
-                      priority
-                      className="w-full h-full object-cover select-none pointer-events-none"
-                    />
-                    {/* Atmospheric Vignette Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#081210]/50 via-transparent to-[#081210]/20 pointer-events-none" />
-                  </div>
-                ))}
-
-                {/* Corner Registry Crosshairs */}
-                <div className="absolute top-3 left-3 text-[11px] font-mono font-bold text-white/50 z-20 pointer-events-none select-none">
-                  +
-                </div>
-                <div className="absolute top-3 right-3 text-[11px] font-mono font-bold text-white/50 z-20 pointer-events-none select-none">
-                  +
-                </div>
-                <div className="absolute bottom-3 left-3 text-[11px] font-mono font-bold text-white/50 z-20 pointer-events-none select-none">
-                  +
-                </div>
-                <div className="absolute bottom-3 right-3 text-[11px] font-mono font-bold text-white/50 z-20 pointer-events-none select-none">
-                  +
-                </div>
-              </div>
-            </div>
-
-            {/* Synchronized Mudra Identifier */}
-            <div className="flex flex-col items-center space-y-2">
-              <div className="inline-flex items-center gap-2.5 rounded-full bg-[#17332f]/90 backdrop-blur-md px-4 py-1.5 border border-white/20 shadow-[0_4px_16px_rgba(23,51,47,0.18)]">
-                <span className="text-[10px] font-mono font-bold tracking-widest text-[#a9dfd2]">
-                  {loadingImages[currentImageIndex].id} // 04
-                </span>
-                <span className="h-2.5 w-px bg-white/30" />
-                <span className="text-[10px] font-mono font-bold tracking-[0.18em] uppercase text-white">
-                  {loadingImages[currentImageIndex].label}
-                </span>
-              </div>
-            </div>
-          </main>
-
-          {/* Bottom Telemetry & Progress Meter */}
-          <footer className="relative z-10 w-full max-w-md flex flex-col items-center space-y-3">
-            <div className="w-full flex items-center justify-between text-[11px] font-mono text-[#244f45]">
-              <span className="tracking-[0.14em] uppercase font-bold text-[10px] sm:text-[11px]">
-                CALIBRATING GUARDIAN ARCHIVE
-              </span>
-              <span className="font-bold font-mono">{Math.round(loadingProgress)}%</span>
-            </div>
-
-            {/* Mint & Emerald Hairline Progress Track */}
-            <div className="w-full h-1.5 rounded-full bg-[#badfcf] overflow-hidden p-0.5 border border-[#a6d4c0]">
+          {/* Centerpiece Picture Mount */}
+          <div className="relative w-[280px] h-[280px] sm:w-[360px] sm:h-[360px] md:w-[420px] md:h-[420px] rounded-[32px] sm:rounded-[42px] overflow-hidden shadow-[0_28px_80px_rgba(23,51,47,0.22),0_4px_24px_rgba(0,109,98,0.12)] border-2 border-[#b8dfce] ring-8 ring-[#c7f9e5]/60 bg-[#081210]">
+            {loadingImages.map((src, idx) => (
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#006d62] via-[#1c9b73] to-[#00584f] transition-all duration-75 ease-out shadow-[0_0_8px_rgba(28,155,115,0.5)]"
-                style={{ width: `${loadingProgress}%` }}
-              />
-            </div>
-
-            {/* Minimalist Skip Option */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsExitTransition(true);
-                setTimeout(() => setIsLoading(false), 250);
-              }}
-              className="pt-1 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.2em] text-[#4d766b] hover:text-[#17332f] transition-colors cursor-pointer"
-            >
-              Skip Intro →
-            </button>
-          </footer>
+                key={src}
+                className={`absolute inset-0 transition-opacity duration-150 ease-out ${
+                  idx === currentImageIndex
+                    ? "opacity-100 z-10 scale-100"
+                    : "opacity-0 z-0 scale-[0.98]"
+                }`}
+              >
+                <Image
+                  src={src}
+                  alt=""
+                  width={1080}
+                  height={1080}
+                  priority
+                  className="w-full h-full object-cover select-none pointer-events-none"
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {/* ========================================================================= */}
