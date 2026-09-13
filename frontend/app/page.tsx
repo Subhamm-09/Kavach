@@ -259,14 +259,11 @@ export default function HomePage() {
     }
     window.scrollTo(0, 0);
 
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) {
-      setIsLoading(false);
-      return;
-    }
+    // Lock page scrolling while loading screen is active
+    document.body.style.overflow = "hidden";
 
-    const duration = 3600; // 3.6s total duration
-    const intervalTime = 220; // 220ms rapid shutter cut
+    const duration = 3800; // 3.8s total duration
+    const intervalTime = 200; // 200ms rapid shutter cut
 
     // Rapid sequential cycling across images 1, 2, 3, 4
     const cycleTimer = setInterval(() => {
@@ -278,12 +275,14 @@ export default function HomePage() {
       setIsExitTransition(true);
       setTimeout(() => {
         setIsLoading(false);
-      }, 700); // 700ms smooth dissolve
+        document.body.style.overflow = "";
+      }, 600); // 600ms smooth curtain dissolve
     }, duration);
 
     return () => {
       clearInterval(cycleTimer);
       clearTimeout(exitTimer);
+      document.body.style.overflow = "";
     };
   }, []);
 
@@ -296,35 +295,28 @@ export default function HomePage() {
         <div
           role="status"
           aria-label="Loading"
-          className={`fixed inset-0 z-[9999] flex items-center justify-center p-6 select-none transition-opacity duration-700 ease-out ${
+          className={`fixed inset-0 w-screen h-screen z-[100000] flex items-center justify-center p-6 select-none transition-opacity duration-600 ease-out ${
             isExitTransition ? "opacity-0 pointer-events-none" : "opacity-100"
           }`}
           style={{
             backgroundColor: "#dff4ee",
             backgroundImage:
-              "radial-gradient(ellipse 70% 60% at 50% 50%, #eff9f4 0%, #dcf1e9 55%, #c8e8db 100%)",
+              "radial-gradient(ellipse 75% 65% at 50% 50%, #eff9f4 0%, #dff4ee 55%, #c8e8db 100%)",
           }}
         >
           {/* Centerpiece Picture Mount */}
-          <div className="relative w-[280px] h-[280px] sm:w-[360px] sm:h-[360px] md:w-[420px] md:h-[420px] rounded-[32px] sm:rounded-[42px] overflow-hidden shadow-[0_28px_80px_rgba(23,51,47,0.22),0_4px_24px_rgba(0,109,98,0.12)] border-2 border-[#b8dfce] ring-8 ring-[#c7f9e5]/60 bg-[#081210]">
+          <div className="relative w-[280px] h-[280px] sm:w-[360px] sm:h-[360px] md:w-[440px] md:h-[440px] rounded-[32px] sm:rounded-[42px] overflow-hidden shadow-[0_28px_80px_rgba(23,51,47,0.22),0_4px_24px_rgba(0,109,98,0.12)] border-2 border-[#b8dfce] ring-8 ring-[#c7f9e5]/60 bg-[#081210]">
             {loadingImages.map((src, idx) => (
-              <div
+              <img
                 key={src}
-                className={`absolute inset-0 transition-opacity duration-150 ease-out ${
-                  idx === currentImageIndex
-                    ? "opacity-100 z-10 scale-100"
-                    : "opacity-0 z-0 scale-[0.98]"
+                src={src}
+                alt=""
+                className={`absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-opacity duration-100 ${
+                  idx === currentImageIndex ? "opacity-100 z-10" : "opacity-0 z-0"
                 }`}
-              >
-                <Image
-                  src={src}
-                  alt=""
-                  width={1080}
-                  height={1080}
-                  priority
-                  className="w-full h-full object-cover select-none pointer-events-none"
-                />
-              </div>
+                loading="eager"
+                decoding="sync"
+              />
             ))}
           </div>
         </div>
