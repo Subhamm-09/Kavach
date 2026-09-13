@@ -569,6 +569,82 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+
+        {/* ========================================================================= */}
+        {/* 3. GRAND CINEMATIC SHOWPIECE (Cultural Anchor & Showpiece Finale)         */}
+        {/* ========================================================================= */}
+        <section
+          aria-label="Kavach Cultural Tribute"
+          className="relative overflow-hidden rounded-[36px] bg-[#0c1c19] border border-[#1e3b34] p-6 sm:p-10 lg:p-14 text-white shadow-[0_32px_90px_rgba(12,28,25,0.45)]"
+        >
+          {/* Ambient Lighting & Thematic Glow Backdrop */}
+          <div
+            className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-[radial-gradient(ellipse_at_center,rgba(239,68,68,0.14)_0%,rgba(0,109,98,0.20)_50%,transparent_75%)] pointer-events-none blur-3xl"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(28,155,115,0.08)_0%,transparent_60%)] pointer-events-none"
+            aria-hidden="true"
+          />
+
+          {/* Section Editorial Header */}
+          <div className="relative z-10 mb-8 sm:mb-10 text-center max-w-2xl mx-auto space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#275349] bg-[#122b26] px-4 py-1.5 text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-[#a9dfd2]">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ef4444] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ef4444]" />
+              </span>
+              <span>CULTURAL ANCHOR • AUTONOMY & DIGNITY</span>
+            </div>
+
+            <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-[-0.04em] leading-[1.08] text-[#f7f5ef]">
+              Strength in every step.
+              <br />
+              <span className="bg-gradient-to-r from-[#ffffff] via-[#a9dfd2] to-[#1c9b73] bg-clip-text text-transparent">
+                Sovereignty in every space.
+              </span>
+            </h2>
+
+            <p className="text-xs sm:text-sm text-[#8ca098] leading-relaxed max-w-lg mx-auto font-medium">
+              Kavach was built on a foundational conviction: true safety is not surveillance—it is the
+              unconditional freedom to inhabit the world with dignity, power, and peace of mind.
+            </p>
+          </div>
+
+          {/* Cinematic Poster Showpiece Container */}
+          <div className="relative z-10 group mx-auto max-w-4xl rounded-[24px] sm:rounded-[28px] overflow-hidden border border-[#2b5147] bg-[#071311] shadow-[0_24px_70px_rgba(0,0,0,0.6)] transition-all duration-700 hover:border-[#3d7567] hover:shadow-[0_32px_90px_rgba(0,109,98,0.25)]">
+            {/* Top Atmospheric Lens Flare & Crimson Rim Highlight */}
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#ef4444]/60 to-transparent z-20 pointer-events-none" />
+
+            {/* Poster Artwork */}
+            <div className="relative aspect-[16/9] w-full overflow-hidden">
+              <Image
+                src="/naari-showpiece.jpg"
+                alt="Naari — Feminism is Power • Kavach Cultural Tribute"
+                width={1024}
+                height={576}
+                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              />
+              {/* Subtle Cinematic Vignette Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#071311]/70 via-transparent to-transparent pointer-events-none" />
+            </div>
+
+            {/* Cinematic Lower Caption Strip */}
+            <div className="px-6 py-4 sm:px-8 sm:py-5 border-t border-[#1e3b34] bg-[#0a1815]/90 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="h-2 w-2 rounded-full bg-[#ef4444]" />
+                <p className="text-xs sm:text-sm font-semibold text-[#d5e4de] tracking-wide">
+                  <span className="italic font-serif text-[#f7f5ef]">Naari</span> — The Divine & Unyielding Force
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 text-[10px] sm:text-[11px] font-mono tracking-widest text-[#718c83] uppercase">
+                <span className="text-[#1c9b73]">●</span>
+                <span>BHUBANESWAR GUARDIAN MESH • ZERO-PII</span>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
