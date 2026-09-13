@@ -55,7 +55,10 @@ const actions = [
 export default function HomePage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const heroRef = useRef<HTMLDivElement | null>(null);
+  const footerRef = useRef<HTMLElement | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [introVisible, setIntroVisible] = useState(true);
+  const [isGliding, setIsGliding] = useState(false);
 
   // Lightweight HTML5 Canvas Spatial & Geospatial Environment
   useEffect(() => {
@@ -245,8 +248,133 @@ export default function HomePage() {
     };
   }, []);
 
+  // Cinematic Initial Prologue: Start at Footer, then Glide Upward to Hero
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Respect reduced motion accessibility
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) {
+      setIntroVisible(false);
+      return;
+    }
+
+    // Preserve standard behavior if linking directly to a section hash
+    if (window.location.hash) {
+      setIntroVisible(false);
+      return;
+    }
+
+    // Prevent browser scroll restoration on refresh so it always starts at the footer
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+
+    let glideAnimId: number;
+    let glideTimeout: NodeJS.Timeout;
+
+    // Position at the footer immediately upon mount
+    const prepareTimeout = setTimeout(() => {
+      const targetElement = footerRef.current;
+      if (targetElement) {
+        const topPos = targetElement.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo(0, Math.max(0, topPos - 24));
+      } else {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      }
+
+      // Smoothly dissolve the intro veil so the user beholds the Naari masterpiece
+      setIntroVisible(false);
+
+      // Brief luxury pause for the user to absorb the Naari tribute before upward camera glide
+      glideTimeout = setTimeout(() => {
+        setIsGliding(true);
+
+        const startY = window.scrollY || window.pageYOffset;
+        const targetY = 0;
+        const distance = targetY - startY;
+        const duration = 2400; // 2.4s cinematic dolly glide
+        let startTime: number | null = null;
+
+        // Luxury Quartic Easing: gentle inception, steady glide, velvet deceleration
+        const easeInOutQuart = (t: number) =>
+          t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+
+        const stopGlide = () => {
+          if (glideAnimId) cancelAnimationFrame(glideAnimId);
+          setIsGliding(false);
+          window.removeEventListener("wheel", stopGlide);
+          window.removeEventListener("touchmove", stopGlide);
+          window.removeEventListener("keydown", stopGlide);
+        };
+
+        window.addEventListener("wheel", stopGlide, { passive: true, once: true });
+        window.addEventListener("touchmove", stopGlide, { passive: true, once: true });
+        window.addEventListener("keydown", stopGlide, { passive: true, once: true });
+
+        const step = (timestamp: number) => {
+          if (!startTime) startTime = timestamp;
+          const elapsed = timestamp - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const eased = easeInOutQuart(progress);
+
+          window.scrollTo(0, startY + distance * eased);
+
+          if (progress < 1) {
+            glideAnimId = requestAnimationFrame(step);
+          } else {
+            window.scrollTo(0, 0);
+            setIsGliding(false);
+            stopGlide();
+          }
+        };
+
+        glideAnimId = requestAnimationFrame(step);
+      }, 950);
+    }, 40);
+
+    return () => {
+      clearTimeout(prepareTimeout);
+      clearTimeout(glideTimeout);
+      if (glideAnimId) cancelAnimationFrame(glideAnimId);
+    };
+  }, []);
+
   return (
     <div className="space-y-16 pb-16">
+      {/* Cinematic Intro Veil to ensure crisp start at the bottom */}
+      <div
+        className={`fixed inset-0 z-50 pointer-events-none bg-[#f7f5ef] transition-opacity duration-700 ease-out ${
+          introVisible ? "opacity-100" : "opacity-0"
+        }`}
+        aria-hidden="true"
+      />
+
+      {/* Floating Cinematic Ascent HUD Indicator */}
+      {isGliding && (
+        <aside
+          aria-live="polite"
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-40 px-5 py-2.5 rounded-full bg-[#17332f]/92 backdrop-blur-md border border-[#cfe2da]/30 text-white shadow-[0_12px_36px_rgba(23,51,47,0.3)] flex items-center gap-3 animate-fade-in transition-all"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1c9b73] opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1c9b73]" />
+          </span>
+          <span className="text-[10px] sm:text-[11px] font-mono font-bold tracking-[0.2em] uppercase text-[#e7f4ee]">
+            ASCENDING TO KAVACH HERO
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: "smooth" });
+              setIsGliding(false);
+            }}
+            className="ml-1 text-[9px] font-mono uppercase tracking-wider text-[#a9dfd2] hover:text-white underline cursor-pointer"
+          >
+            Skip
+          </button>
+        </aside>
+      )}
       {/* ========================================================================= */}
       {/* 1. CINEMATIC HERO SECTION (Full Viewport Breakout)                        */}
       {/* ========================================================================= */}
@@ -574,7 +702,7 @@ export default function HomePage() {
         {/* ========================================================================= */}
         {/* 3. CINEMATIC LANDING FOOTER SHOWPIECE (Naari Cultural Sanctuary)          */}
         {/* ========================================================================= */}
-        <section className="relative pt-6 sm:pt-10">
+        <section ref={footerRef} className="relative pt-6 sm:pt-10">
           {/* Ambient Glow Aura */}
           <div
             className="absolute inset-x-8 -top-6 h-64 bg-[radial-gradient(ellipse_at_center,rgba(0,109,98,0.12)_0%,rgba(28,155,115,0.06)_50%,transparent_75%)] blur-2xl pointer-events-none"
