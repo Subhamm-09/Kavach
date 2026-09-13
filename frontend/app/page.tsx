@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   MapPin,
   MessageSquareHeart,
@@ -266,9 +267,9 @@ export default function HomePage() {
           aria-hidden="true"
         />
 
-        {/* Signature Guardian Field (Abstract Orbital Protection Centerpiece) */}
+        {/* Signature Guardian Field (Artistic Orbital Protection Centerpiece) */}
         <div
-          className="absolute right-[-10%] sm:right-[5%] lg:right-[8%] top-[12%] sm:top-[16%] w-[320px] h-[320px] sm:w-[500px] sm:h-[500px] lg:w-[620px] lg:h-[620px] pointer-events-none select-none z-10 opacity-75 transition-transform duration-700 ease-out"
+          className="absolute right-[-12%] sm:right-[2%] lg:right-[6%] top-[10%] sm:top-[12%] lg:top-[10%] w-[330px] h-[330px] sm:w-[480px] sm:h-[480px] lg:w-[580px] lg:h-[580px] pointer-events-none select-none z-10 opacity-40 sm:opacity-90 lg:opacity-100 transition-transform duration-700 ease-out"
           style={{
             transform: `translate3d(${mousePos.x * -18}px, ${mousePos.y * -18}px, 0)`,
           }}
@@ -292,25 +293,42 @@ export default function HomePage() {
           </div>
 
           {/* Middle Ring: Secondary Scanning Corridor */}
-          <div className="absolute inset-[15%] rounded-full border border-[#006d62]/25 animate-[spin_40s_linear_infinite_reverse]" />
+          <div className="absolute inset-[10%] rounded-full border border-[#006d62]/20 animate-[spin_40s_linear_infinite_reverse]" />
 
           {/* Restrained Radar Sweep */}
           <div
-            className="absolute inset-[15%] rounded-full animate-[spin_12s_linear_infinite] opacity-60"
+            className="absolute inset-[10%] rounded-full animate-[spin_12s_linear_infinite] opacity-50"
             style={{
               background:
                 "conic-gradient(from 0deg, transparent 0deg, rgba(0, 109, 98, 0.08) 50deg, transparent 55deg)",
             }}
           />
 
-          {/* Inner Ring: Soft Protective Field Glow */}
-          <div className="absolute inset-[32%] rounded-full border border-[#1c9b73]/40 bg-gradient-to-br from-[#dff4ee]/40 to-transparent shadow-[inset_0_0_30px_rgba(0,109,98,0.06)] animate-pulse" />
+          {/* Radiant Protective Field Glow Behind Core */}
+          <div className="absolute inset-[18%] rounded-full bg-[radial-gradient(circle,rgba(130,224,190,0.45)_0%,rgba(0,109,98,0.08)_55%,transparent_75%)] blur-md" />
 
-          {/* Central Core Coordinate Beacon */}
-          <div className="absolute inset-[46%] rounded-full bg-[#006d62] text-white flex items-center justify-center shadow-[0_0_24px_rgba(0,109,98,0.4)]">
-            <span className="relative flex h-3 w-3">
+          {/* Central Guardian Artistic Emblem Medallion */}
+          <div className="absolute inset-[20%] rounded-full p-2 sm:p-2.5 bg-[#fffdf8]/85 backdrop-blur-md shadow-[0_24px_64px_rgba(0,109,98,0.20),0_4px_16px_rgba(23,51,47,0.08)] border-2 border-[#b8e5d3] ring-8 ring-[#e8f7f0]/50 flex items-center justify-center overflow-hidden">
+            <Image
+              src="/guardian-emblem.png"
+              alt="Kavach Guardian Emblem"
+              width={420}
+              height={420}
+              priority
+              className="w-full h-full object-cover rounded-full pointer-events-none"
+            />
+            {/* Ambient Glass Sheen Overlay */}
+            <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-white/10 to-white/25 pointer-events-none" />
+          </div>
+
+          {/* Floating Status Capsule */}
+          <div className="absolute bottom-[13%] left-1/2 -translate-x-1/2 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-[#fffdf8]/95 backdrop-blur-md border border-[#b8e5d3] shadow-[0_8px_20px_rgba(23,51,47,0.12)] flex items-center gap-2 whitespace-nowrap">
+            <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1c9b73] opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-[#1c9b73]" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1c9b73]" />
+            </span>
+            <span className="text-[9px] sm:text-[10px] font-mono font-bold tracking-widest text-[#006d62]">
+              GUARDIAN PRESENCE • ACTIVE
             </span>
           </div>
         </div>
@@ -408,35 +426,54 @@ export default function HomePage() {
         {/* Human-Centered Safety Philosophy Card */}
         <section className="relative overflow-hidden rounded-[32px] border border-[#d5e2dc] bg-[#e8f1eb] px-6 py-10 sm:px-10 sm:py-12">
           <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full border-[28px] border-[#c8e5da] opacity-70" />
-          <div className="relative max-w-3xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#b8d8cc] bg-[#f9fcf9] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[.1em] text-[#397066]">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1c9b73]" />
-              A safer Bhubaneswar, in your pocket
+          <div className="relative flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="max-w-xl">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#b8d8cc] bg-[#f9fcf9] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[.1em] text-[#397066]">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1c9b73]" />
+                A safer Bhubaneswar, in your pocket
+              </div>
+              <p className="mb-2 text-sm font-bold text-[#397066]">
+                You do not have to figure it out alone.
+              </p>
+              <h2 className="max-w-2xl text-3xl sm:text-5xl font-extrabold leading-[1.02] tracking-[-0.05em] text-[#17332f]">
+                Safety that feels{" "}
+                <span className="font-[Playfair_Display] font-semibold italic">human.</span>
+              </h2>
+              <p className="mt-5 max-w-xl text-sm sm:text-base leading-relaxed text-[#52635c]">
+                Kavach helps you notice risks, respond calmly, and preserve what matters—without
+                asking you to trade away your privacy.
+              </p>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Link
+                  href="/safety"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#006d62] px-5 py-3 text-xs font-bold text-white shadow-[0_10px_22px_rgba(0,109,98,.2)] transition hover:-translate-y-0.5"
+                >
+                  See my surroundings <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/report"
+                  className="inline-flex items-center gap-2 rounded-full border border-[#bfd2c9] bg-[#fffdf8] px-5 py-3 text-xs font-bold text-[#17332f] transition hover:bg-white"
+                >
+                  Report an incident
+                </Link>
+              </div>
             </div>
-            <p className="mb-2 text-sm font-bold text-[#397066]">
-              You do not have to figure it out alone.
-            </p>
-            <h2 className="max-w-2xl text-3xl sm:text-5xl font-extrabold leading-[1.02] tracking-[-0.05em] text-[#17332f]">
-              Safety that feels{" "}
-              <span className="font-[Playfair_Display] font-semibold italic">human.</span>
-            </h2>
-            <p className="mt-5 max-w-xl text-sm sm:text-base leading-relaxed text-[#52635c]">
-              Kavach helps you notice risks, respond calmly, and preserve what matters—without
-              asking you to trade away your privacy.
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link
-                href="/safety"
-                className="inline-flex items-center gap-2 rounded-full bg-[#006d62] px-5 py-3 text-xs font-bold text-white shadow-[0_10px_22px_rgba(0,109,98,.2)] transition hover:-translate-y-0.5"
-              >
-                See my surroundings <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="/report"
-                className="inline-flex items-center gap-2 rounded-full border border-[#bfd2c9] bg-[#fffdf8] px-5 py-3 text-xs font-bold text-[#17332f] transition hover:bg-white"
-              >
-                Report an incident
-              </Link>
+
+            {/* Artistic Emblem Cameo */}
+            <div className="hidden md:flex flex-col items-center justify-center shrink-0 pr-4">
+              <div className="relative w-44 h-44 lg:w-52 lg:h-52 rounded-full p-2 bg-[#fffdf8]/90 backdrop-blur-sm border border-[#b8e5d3] shadow-[0_16px_36px_rgba(0,109,98,0.12)]">
+                <div className="absolute -inset-2.5 rounded-full border border-dashed border-[#006d62]/20 animate-[spin_50s_linear_infinite]" />
+                <Image
+                  src="/guardian-emblem.png"
+                  alt="Kavach Guardian Emblem"
+                  width={208}
+                  height={208}
+                  className="w-full h-full object-cover rounded-full pointer-events-none"
+                />
+              </div>
+              <p className="mt-3 text-[10px] lg:text-[11px] font-mono tracking-widest uppercase text-[#397066] font-bold text-center">
+                Protection rooted in empathy
+              </p>
             </div>
           </div>
         </section>
