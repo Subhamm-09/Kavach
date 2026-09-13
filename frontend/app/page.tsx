@@ -295,7 +295,7 @@ export default function HomePage() {
         <div
           role="status"
           aria-label="Loading"
-          className={`fixed inset-0 w-screen h-screen z-[100000] flex items-center justify-center p-6 select-none transition-opacity duration-600 ease-out ${
+          className={`fixed inset-0 w-screen h-screen z-[100000] flex flex-col items-center justify-center p-6 select-none transition-opacity duration-600 ease-out ${
             isExitTransition ? "opacity-0 pointer-events-none" : "opacity-100"
           }`}
           style={{
@@ -305,7 +305,7 @@ export default function HomePage() {
           }}
         >
           {/* Centerpiece Picture Mount */}
-          <div className="relative w-[280px] h-[280px] sm:w-[360px] sm:h-[360px] md:w-[440px] md:h-[440px] rounded-[32px] sm:rounded-[42px] overflow-hidden shadow-[0_28px_80px_rgba(23,51,47,0.22),0_4px_24px_rgba(0,109,98,0.12)] border-2 border-[#b8dfce] ring-8 ring-[#c7f9e5]/60 bg-[#081210]">
+          <div className="relative w-[280px] h-[280px] sm:w-[360px] sm:h-[360px] md:w-[420px] md:h-[420px] rounded-[32px] sm:rounded-[42px] overflow-hidden shadow-[0_28px_80px_rgba(23,51,47,0.22),0_4px_24px_rgba(0,109,98,0.12)] border-2 border-[#b8dfce] ring-8 ring-[#c7f9e5]/60 bg-[#081210]">
             {loadingImages.map((src, idx) => (
               <img
                 key={src}
@@ -318,6 +318,12 @@ export default function HomePage() {
                 decoding="sync"
               />
             ))}
+          </div>
+
+          {/* Minimalist Loading Notice */}
+          <div className="mt-8 flex items-center gap-2 text-xs sm:text-sm font-medium tracking-[0.16em] text-[#244f45]/90 select-none">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#1c9b73] animate-pulse" />
+            <span>Loading page, please wait</span>
           </div>
         </div>
       )}
