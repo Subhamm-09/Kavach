@@ -2,10 +2,12 @@
  * Kavach Unified API Client
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const rawBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_BASE = rawBase.replace(/\/+$/, "");
 
 export async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
+  const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${normalizedEndpoint}`;
   
   // Retrieve token if stored in localStorage (for client-side calls)
   let token: string | null = null;
