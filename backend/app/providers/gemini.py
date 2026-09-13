@@ -59,8 +59,8 @@ class GeminiProvider(BaseAIProvider):
     def _handle_failure(self, err: Exception, stage: str):
         err_str = str(err)
         if any(code in err_str for code in ["400", "401", "403", "429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "INVALID_ARGUMENT", "quota"]):
-            self.quota_exhausted_until = time.time() + 45.0
-            print(f"[GEMINI CIRCUIT BREAKER] {stage} rate-limited or unavailable ({err_str[:90]}). Temporary 45s fallback active.")
+            self.quota_exhausted_until = time.time() + 10.0
+            print(f"[GEMINI CIRCUIT BREAKER] {stage} rate-limited or unavailable ({err_str[:90]}). Temporary 10s fallback active.")
         else:
             print(f"[GEMINI CALL FALLBACK] {stage} failed ({err_str[:90]}), using fallback.")
 
@@ -328,6 +328,9 @@ SAFETY & ACTION-ORIENTATION RULES
 
 4. MULTI-TURN CONTINUITY:
    - Always acknowledge the flow of the conversation from RECENT CONVERSATION HISTORY. Never repeat generic greetings ("Hi, I'm Kavach") if you are already in a dialogue.
+
+5. TRANSIT & GOING HOME:
+   - If the user says "i want to go home", asks how to leave, or seeks transit safety after an incident, give clear grounding transit guidance: tell them to stay on the main illuminated road with shops/CCTV, keep emergency contacts on the line, and offer live safe route guidance.
 
 =========================================
 HUMANIZATION & TONE RULES

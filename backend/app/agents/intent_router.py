@@ -30,7 +30,7 @@ class IntentRouterAgentNode:
 
         intent_data = await ai_provider.classify_chat_intent(
             message_text=user_message,
-            conversation_history=[]
+            conversation_history=state.get("conversation_history", [])
         )
 
         classified_intent = intent_data.get("intent", "emotional_support")

@@ -25,15 +25,23 @@ class LegalAgentNode:
         # RAG query
         legal_response = LegalVectorStore.query_legal_guidance(query=query_text)
 
-        # Generate complaint draft if intent warrants it
+        # Generate complaint draft ONLY if intent or input warrants formal drafting
         citations_dicts = [c.model_dump() for c in legal_response.citations]
-        complaint_draft = await ai_provider.draft_formal_complaint(
-            incident_narrative=query_text,
-            perpetrator_details=None,
-            citations=citations_dicts,
-            police_station="Infocity Police Station, Bhubaneswar",
-            complainant_name="[Complainant / Protected Identity]"
+        should_draft = (
+            state.get("signal_type") in ["COMPLAINT_DRAFT", "INCIDENT_REPORT"]
+            or state.get("chat_intent") == "incident_reporting"
+            or any(k in query_text.lower() for k in ["draft complaint", "file complaint", "police complaint", "write complaint", "fir draft", "lodge complaint"])
         )
+
+        complaint_draft = None
+        if should_draft:
+            complaint_draft = await ai_provider.draft_formal_complaint(
+                incident_narrative=query_text,
+                perpetrator_details=None,
+                citations=citations_dicts,
+                police_station="Infocity Police Station, Bhubaneswar",
+                complainant_name="[Complainant / Protected Identity]"
+            )
 
         state["previous_agent"] = state.get("current_agent")
         state["current_agent"] = "LegalAgent"

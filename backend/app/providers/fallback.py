@@ -135,9 +135,9 @@ class DeterministicFallbackProvider(BaseAIProvider):
             "danger", "help me", "hurt me", "hurt", "im hurt", "i'm hurt", "bleeding",
             "injured", "injury", "in pain", "hit me", "punched", "beaten", "attacked",
             "scared", "don't feel safe", "unlit alley", "not safe",
-            "touched", "touched me", "touched inappropriately", "groped", "molested",
+            "touched", "touched me", "touched inappropriately", "groped", "molested", "spanked", "spank",
             "assault", "assaulted", "forced me", "unwanted touch",
-            "knife", "weapon", "gun", "threatened", "threaten", "kill me", "grabbed me",
+            "knife", "weapon", "gun", "threatened", "threaten", "kill me", "grabbed me", "grabbed",
             "emergency", "sos", "call police", "call ambulance", "call 112", "call 108",
             "knows my address", "outside my house", "outside my home", "at my door", "save me"
         ]
@@ -425,12 +425,17 @@ Yours sincerely,
         """Classify conversational intent for graph routing."""
         text = (message_text or "").lower()
 
-        # Route request
-        if any(k in text for k in ["route", "direction", "navigation", "how to reach", "way home", "safest path"]):
+        # Route request / Navigation / Going home
+        if any(k in text for k in [
+            "route", "direction", "navigation", "how to reach", "way home", "safest path",
+            "go home", "going home", "get home", "heading home", "head home", "reach home",
+            "take me home", "want to leave", "get out of here", "safe exit", "i want to go home",
+            "take a cab", "find a route", "walk home"
+        ]):
             return {
                 "intent": "route_request",
-                "confidence": 0.92,
-                "reasoning": "User explicitly asked for routing or directions"
+                "confidence": 0.95,
+                "reasoning": "User requested safe route, navigation, or directions to go home"
             }
 
         # Safety request
@@ -506,7 +511,7 @@ Yours sincerely,
             )
 
         # 1. Sexual Harassment / Inappropriate Touch / Assault
-        if any(k in raw_text for k in ["touched inappropriately", "touched me", "touched", "groped", "molested", "assaulted", "assault", "forced me", "unwanted touch"]):
+        if any(k in raw_text for k in ["touched inappropriately", "touched me", "touched", "groped", "molested", "spanked", "spank", "grabbed me", "grabbed", "assaulted", "assault", "forced me", "unwanted touch"]):
             return (
                 "What happened is completely wrong and is a punishable offense under Bharatiya Nyaya Sanhita (BNS § 74/75). "
                 "First, get to a safe, populated, or well-lit space where you feel secure. "
@@ -591,9 +596,10 @@ Yours sincerely,
         # 7. Legal Guidance synthesis
         if legal_res and legal_res.get("answer"):
             sections = legal_res.get("applicable_sections", [])
-            sec_text = f" Under provisions like {', '.join(sections[:2])}," if sections else ""
+            clean_sections = [s.strip() for s in sections if len(s.strip()) < 35 and any(k in s.lower() for k in ["section", "bns", "act", "posh"])]
+            sec_text = f" Under provisions such as {', '.join(clean_sections[:2])}," if clean_sections else " Under the Bharatiya Nyaya Sanhita (BNS) and Indian legal protections,"
             return (
-                f"You have clear rights in this situation.{sec_text} Indian law protects you against repeated harassment, stalking, and intimidation. "
+                f"You have clear legal rights in this situation.{sec_text} Indian law protects you against repeated harassment, stalking, and intimidation. "
                 "You can choose to file a formal complaint or preserve evidence quietly until you're ready. "
                 "Would you like me to help you prepare a written draft for the local station, or walk through your options first?"
             )
@@ -669,7 +675,37 @@ Yours sincerely,
                 "I'll remain right here if you need anything else or want to log any notes later."
             )
 
-        # 13. Therapy base response fallback
+        # 13. Transit / Heading Home / Leaving Unsafe Area
+        if any(k in raw_text for k in ["go home", "going home", "get home", "head home", "way home", "take me home", "leave here", "want to go home", "home", "leave"]):
+            route_name = route_res.get("recommended_route", {}).get("name", "the main well-lit corridor") if route_res else "the main illuminated commercial avenue"
+            return (
+                f"Let's get you home safely right now. Stick strictly to {route_name} where there are active streetlights, CCTV, and people around, and avoid all dark cuts or unlit alleys. "
+                "Keep your phone active in your hand. "
+                "Would you like me to guide you step-by-step along the safest path home, or should I help you connect with Police (112) or a trusted contact?"
+            )
+
+        # 14. Multi-turn context awareness (check prior conversation turns)
+        past_user_texts = " ".join([h.get("text", "").lower() for h in (conversation_history or []) if h.get("sender") == "USER"])
+        has_prior_distress = any(k in past_user_texts for k in ["following", "stalker", "touched", "spanked", "hurt", "bike", "scared", "harass", "threat", "cornered", "attacked"])
+
+        # Prior distress follow-up (e.g. user asking "what now", "what should i do", "what next", or expressing fear)
+        if has_prior_distress:
+            if any(k in raw_text for k in ["what should i do", "what to do", "now what", "what next", "how to leave", "help me", "help"]):
+                return (
+                    "Given what you've just been through, your safety is the absolute top priority. "
+                    "First, make sure you are in a safe, lit place with people or shopkeepers around. "
+                    "From here: 1) Call Emergency Police (112) or Women Helpline (1091) if you feel in immediate danger. "
+                    "2) I can map the safest illuminated route home for you. 3) We can preserve a secure timestamped log of the assault for legal action under BNS § 74. Which of these can I help you with first?"
+                )
+
+        # 15. Acknowledgments / short responses
+        if re.search(r"^\s*(ok|okay|yes|yeah|sure|alright|fine|understood|thanks|thank you)\b", raw_text):
+            return (
+                "I'm right here with you. Take a slow, steady breath. "
+                "Your safety is what matters most. Tell me if you are in a secure location right now, or if you'd like me to map out a safe route home or connect you to emergency support."
+            )
+
+        # 16. Therapy base response fallback
         if therapy_res and therapy_res.get("text"):
             raw_therapy = therapy_res.get("text", "")
             if "supporting your safety" not in raw_therapy and "processing your message" not in raw_therapy:
@@ -677,7 +713,14 @@ Yours sincerely,
                 if raw_therapy.strip() and len(raw_therapy.strip()) > 15:
                     return raw_therapy.strip()
 
-        # General supportive fallback
+        # 17. Multi-turn fallback (NEVER ask 'tell me what happened' if dialogue already exists)
+        if conversation_history and len(conversation_history) >= 2:
+            return (
+                "I am right here with you every step of the way. Given what occurred earlier, please stay in a well-lit, populated area and do not walk alone through dark stretches. "
+                "Would you like me to guide you along a safe route, connect you directly with emergency support (112 / 1091), or assist with incident logging?"
+            )
+
+        # General initial supportive fallback
         return (
             "I'm listening closely. Could you tell me a little more about what's going on or what happened? "
             "Whether you need practical safety guidance, legal options, or simply someone to talk to, I'm right here with you."
