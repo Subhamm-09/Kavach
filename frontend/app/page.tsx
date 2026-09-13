@@ -57,6 +57,7 @@ const loadingImages = ["/1.jpeg", "/2.jpeg", "/3.jpeg", "/4.jpeg"];
 export default function HomePage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const heroRef = useRef<HTMLDivElement | null>(null);
+  const naariSectionRef = useRef<HTMLElement | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -250,17 +251,38 @@ export default function HomePage() {
     };
   }, []);
 
-  // Minimalist Cinematic Mint Loading (Pure visual rapid cycle on load/refresh)
+  // Minimalist Cinematic Mint Loading & Upward Reveal Transition
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual";
     }
-    window.scrollTo(0, 0);
 
-    // Lock page scrolling while loading screen is active
-    document.body.style.overflow = "hidden";
+    const scrollToNaari = () => {
+      if (naariSectionRef.current) {
+        naariSectionRef.current.scrollIntoView({ block: "end", behavior: "instant" as ScrollBehavior });
+      } else {
+        const maxScroll = Math.max(
+          document.body.scrollHeight,
+          document.documentElement.scrollHeight
+        );
+        window.scrollTo(0, maxScroll);
+      }
+    };
+
+    // Position scroll at the Naari footer section immediately and during asset layout
+    scrollToNaari();
+    const t1 = setTimeout(scrollToNaari, 80);
+    const t2 = setTimeout(scrollToNaari, 400);
+    const t3 = setTimeout(scrollToNaari, 1200);
+
+    // Prevent manual scrolling while loading screen is covering the viewport
+    const preventScroll = (e: Event) => {
+      e.preventDefault();
+    };
+    window.addEventListener("wheel", preventScroll, { passive: false });
+    window.addEventListener("touchmove", preventScroll, { passive: false });
 
     const duration = 3800; // 3.8s total duration
     const intervalTime = 200; // 200ms rapid shutter cut
@@ -270,19 +292,73 @@ export default function HomePage() {
       setCurrentImageIndex((prev) => (prev + 1) % loadingImages.length);
     }, intervalTime);
 
+    let scrollAnimId: number;
+
     const exitTimer = setTimeout(() => {
       clearInterval(cycleTimer);
+      // Ensure scroll is anchored at the bottom right before the curtain dissolves
+      scrollToNaari();
       setIsExitTransition(true);
+
+      // Restore user interaction
+      window.removeEventListener("wheel", preventScroll);
+      window.removeEventListener("touchmove", preventScroll);
+
       setTimeout(() => {
         setIsLoading(false);
-        document.body.style.overflow = "";
-      }, 600); // 600ms smooth curtain dissolve
+
+        // Pause on Naari footer section to let the user admire the artwork & inscription, then smoothly slide upwards to top
+        const slideDelayTimer = setTimeout(() => {
+          const startY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+          if (startY <= 10) return;
+
+          const scrollDuration = 2600; // 2.6s luxurious, cinematic scroll
+          let animStartTime: number | null = null;
+
+          // Velvet cubic-bezier curve (slow ease-in, silky glide, feather-soft decelerating arrival)
+          const easeInOutCubic = (t: number) =>
+            t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+          const cancelScroll = () => {
+            cancelAnimationFrame(scrollAnimId);
+            window.removeEventListener("wheel", cancelScroll);
+            window.removeEventListener("touchstart", cancelScroll);
+          };
+
+          window.addEventListener("wheel", cancelScroll, { passive: true });
+          window.addEventListener("touchstart", cancelScroll, { passive: true });
+
+          const step = (now: number) => {
+            if (!animStartTime) animStartTime = now;
+            const elapsed = now - animStartTime;
+            const progress = Math.min(elapsed / scrollDuration, 1);
+            const eased = easeInOutCubic(progress);
+
+            window.scrollTo(0, Math.round(startY * (1 - eased)));
+
+            if (progress < 1) {
+              scrollAnimId = requestAnimationFrame(step);
+            } else {
+              cancelScroll();
+            }
+          };
+
+          scrollAnimId = requestAnimationFrame(step);
+        }, 850); // 850ms intentional pause on Naari footer section
+
+        return () => clearTimeout(slideDelayTimer);
+      }, 600); // 600ms curtain dissolve
     }, duration);
 
     return () => {
       clearInterval(cycleTimer);
       clearTimeout(exitTimer);
-      document.body.style.overflow = "";
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      cancelAnimationFrame(scrollAnimId);
+      window.removeEventListener("wheel", preventScroll);
+      window.removeEventListener("touchmove", preventScroll);
     };
   }, []);
 
@@ -654,7 +730,7 @@ export default function HomePage() {
         {/* ========================================================================= */}
         {/* 3. CINEMATIC LANDING FOOTER SHOWPIECE (Naari Cultural Sanctuary)          */}
         {/* ========================================================================= */}
-        <section className="relative pt-6 sm:pt-10">
+        <section ref={naariSectionRef} className="relative pt-6 sm:pt-10">
           {/* Ambient Glow Aura */}
           <div
             className="absolute inset-x-8 -top-6 h-64 bg-[radial-gradient(ellipse_at_center,rgba(0,109,98,0.12)_0%,rgba(28,155,115,0.06)_50%,transparent_75%)] blur-2xl pointer-events-none"
@@ -702,6 +778,7 @@ export default function HomePage() {
                 alt="Naari — Celebrating Indian Classical Heritage and Divine Feminine Strength"
                 width={2134}
                 height={1238}
+                priority
                 className="w-full h-auto object-cover transition-transform duration-1000 ease-out group-hover:scale-[1.015]"
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1152px"
               />
